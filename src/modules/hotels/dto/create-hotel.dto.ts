@@ -84,7 +84,7 @@ export class CreateHotelDto {
 
   @IsBoolean()
   @IsOptional()
-  accept_deposit: boolean;
+  accept_deposit: boolean = false;
 
   @ValidateNested()
   @Type(() => AISummaryDto)

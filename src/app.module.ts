@@ -11,7 +11,7 @@ import { MailerModule } from '@nestjs-modules/mailer';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { TransformInterceptor } from './core/transform.interceptor';
 import { HotelsModule } from '@/modules/hotels/hotels.module';
-
+import { RoomsModule } from '@/modules/rooms/rooms.module';
 
 @Module({
   imports: [
@@ -29,7 +29,7 @@ import { HotelsModule } from '@/modules/hotels/hotels.module';
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
         transport: {
-          host: "smtp.gmail.com",
+          host: 'smtp.gmail.com',
           port: 465,
           // ignoreTLS: true,
           secure: true,
@@ -38,8 +38,8 @@ import { HotelsModule } from '@/modules/hotels/hotels.module';
             pass: configService.get<string>('MAIL_PASSWORD'),
           },
           tls: {
-            rejectUnauthorized: false
-          }
+            rejectUnauthorized: false,
+          },
         },
         defaults: {
           from: '"No Reply" <no-reply@localhost>',
@@ -56,6 +56,7 @@ import { HotelsModule } from '@/modules/hotels/hotels.module';
       inject: [ConfigService],
     }),
     HotelsModule,
+    RoomsModule,
   ],
   controllers: [AppController],
   providers: [
@@ -70,4 +71,4 @@ import { HotelsModule } from '@/modules/hotels/hotels.module';
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}

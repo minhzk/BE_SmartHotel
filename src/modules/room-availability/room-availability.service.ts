@@ -10,6 +10,10 @@ import { UpdateRoomAvailabilityDto } from './dto/update-room-availability.dto';
 import aqp from 'api-query-params';
 import mongoose from 'mongoose';
 import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+
+// Cấu hình dayjs để sử dụng plugin UTC
+dayjs.extend(utc);
 
 @Injectable()
 export class RoomAvailabilityService {
@@ -134,8 +138,9 @@ export class RoomAvailabilityService {
       throw new BadRequestException('Invalid room ID');
     }
 
-    const start = dayjs(startDate);
-    const end = dayjs(endDate);
+    // Đảm bảo sử dụng UTC để xử lý ngày tháng
+    const start = dayjs.utc(startDate).startOf('day');
+    const end = dayjs.utc(endDate).startOf('day');
     const daysCount = end.diff(start, 'day') + 1;
 
     if (daysCount <= 0) {
@@ -149,6 +154,7 @@ export class RoomAvailabilityService {
       try {
         const record = await this.roomAvailabilityModel.create({
           room_id: roomId,
+          // Tạo date là UTC với giờ là 00:00:00
           date: currentDate.toDate(),
           status,
           price_override: priceOverride,
@@ -179,12 +185,16 @@ export class RoomAvailabilityService {
       throw new BadRequestException('Invalid room ID');
     }
 
+    // Đảm bảo sử dụng UTC để xử lý ngày tháng
+    const start = dayjs.utc(startDate).startOf('day').toDate();
+    const end = dayjs.utc(endDate).startOf('day').toDate();
+
     const result = await this.roomAvailabilityModel.updateMany(
       {
         room_id: roomId,
         date: {
-          $gte: startDate,
-          $lte: endDate,
+          $gte: start,
+          $lte: end,
         },
       },
       { $set: { status } },
@@ -198,8 +208,8 @@ export class RoomAvailabilityService {
   }
 
   async checkRoomAvailability(roomId: string, date: Date): Promise<boolean> {
-    const startOfDay = dayjs(date).startOf('day').toDate();
-    const endOfDay = dayjs(date).endOf('day').toDate();
+    const startOfDay = dayjs.utc(date).startOf('day').toDate();
+    const endOfDay = dayjs.utc(date).endOf('day').toDate();
 
     const availability = await this.roomAvailabilityModel.findOne({
       room_id: roomId,
@@ -217,5 +227,4 @@ export class RoomAvailabilityService {
     // Nếu có bản ghi, kiểm tra trạng thái
     return availability.status === RoomStatus.AVAILABLE;
   }
-
 }

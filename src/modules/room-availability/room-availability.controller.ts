@@ -13,6 +13,11 @@ import { CreateRoomAvailabilityDto } from './dto/create-room-availability.dto';
 import { UpdateRoomAvailabilityDto } from './dto/update-room-availability.dto';
 import { Public, ResponseMessage } from '@/decorator/customize';
 import { RoomStatus } from './schemas/room-availability.schema';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+
+// Cấu hình dayjs để sử dụng plugin UTC
+dayjs.extend(utc);
 
 @Controller('room-availability')
 export class RoomAvailabilityController {
@@ -32,16 +37,20 @@ export class RoomAvailabilityController {
     @Body()
     body: {
       roomId: string;
-      startDate: Date;
-      endDate: Date;
+      startDate: string | Date;
+      endDate: string | Date;
       status?: RoomStatus;
       priceOverride?: number | null;
     },
   ) {
+    // Xử lý ngày tháng bằng dayjs để đảm bảo tính nhất quán
+    const startDate = dayjs.utc(body.startDate).startOf('day').toDate();
+    const endDate = dayjs.utc(body.endDate).startOf('day').toDate();
+
     return this.roomAvailabilityService.generateAvailabilityForRoom(
       body.roomId,
-      body.startDate,
-      body.endDate,
+      startDate,
+      endDate,
       body.status,
       body.priceOverride,
     );
@@ -53,15 +62,18 @@ export class RoomAvailabilityController {
     @Body()
     body: {
       roomId: string;
-      startDate: Date;
-      endDate: Date;
+      startDate: string | Date;
+      endDate: string | Date;
       status: RoomStatus;
     },
   ) {
+    const startDate = dayjs.utc(body.startDate).startOf('day').toDate();
+    const endDate = dayjs.utc(body.endDate).startOf('day').toDate();
+
     return this.roomAvailabilityService.bulkUpdateStatus(
       body.roomId,
-      body.startDate,
-      body.endDate,
+      startDate,
+      endDate,
       body.status,
     );
   }
@@ -82,9 +94,12 @@ export class RoomAvailabilityController {
   @ResponseMessage('Fetch room availability for date range successfully')
   findByRoomAndDateRange(
     @Param('roomId') roomId: string,
-    @Query('startDate') startDate: Date,
-    @Query('endDate') endDate: Date,
+    @Query('startDate') startDateStr: string,
+    @Query('endDate') endDateStr: string,
   ) {
+    const startDate = dayjs.utc(startDateStr).startOf('day').toDate();
+    const endDate = dayjs.utc(endDateStr).startOf('day').toDate();
+
     return this.roomAvailabilityService.findByRoomAndDateRange(
       roomId,
       startDate,
@@ -99,7 +114,7 @@ export class RoomAvailabilityController {
     @Query('roomId') roomId: string,
     @Query('date') dateStr: string,
   ) {
-    const date = new Date(dateStr);
+    const date = dayjs.utc(dateStr).startOf('day').toDate();
     const isAvailable =
       await this.roomAvailabilityService.checkRoomAvailability(roomId, date);
 

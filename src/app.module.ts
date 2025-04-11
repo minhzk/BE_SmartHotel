@@ -12,6 +12,7 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
 import { TransformInterceptor } from './core/transform.interceptor';
 import { HotelsModule } from '@/modules/hotels/hotels.module';
 import { RoomsModule } from '@/modules/rooms/rooms.module';
+import { RoomAvailabilityModule } from '@/modules/room-availability/room-availability.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { RoomsModule } from '@/modules/rooms/rooms.module';
     }),
     HotelsModule,
     RoomsModule,
+    RoomAvailabilityModule,
   ],
   controllers: [AppController],
   providers: [

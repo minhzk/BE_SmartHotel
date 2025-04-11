@@ -92,6 +92,24 @@ export class RoomAvailabilityController {
     );
   }
 
+  @Get('check')
+  @Public()
+  @ResponseMessage('Check room availability successfully')
+  async checkAvailability(
+    @Query('roomId') roomId: string,
+    @Query('date') dateStr: string,
+  ) {
+    const date = new Date(dateStr);
+    const isAvailable =
+      await this.roomAvailabilityService.checkRoomAvailability(roomId, date);
+
+    return {
+      roomId,
+      date,
+      isAvailable,
+    };
+  }
+
   @Get(':id')
   @Public()
   @ResponseMessage('Fetch room availability successfully')

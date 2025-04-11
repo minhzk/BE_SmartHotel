@@ -196,4 +196,26 @@ export class RoomAvailabilityService {
       modifiedCount: result.modifiedCount,
     };
   }
+
+  async checkRoomAvailability(roomId: string, date: Date): Promise<boolean> {
+    const startOfDay = dayjs(date).startOf('day').toDate();
+    const endOfDay = dayjs(date).endOf('day').toDate();
+
+    const availability = await this.roomAvailabilityModel.findOne({
+      room_id: roomId,
+      date: {
+        $gte: startOfDay,
+        $lte: endOfDay,
+      },
+    });
+
+    // Nếu không tìm thấy bản ghi, coi như phòng có sẵn
+    if (!availability) {
+      return true; // Phòng được coi là khả dụng khi không có bản ghi
+    }
+
+    // Nếu có bản ghi, kiểm tra trạng thái
+    return availability.status === RoomStatus.AVAILABLE;
+  }
+
 }

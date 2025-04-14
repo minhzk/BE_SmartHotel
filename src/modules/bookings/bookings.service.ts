@@ -116,6 +116,21 @@ export class BookingsService {
     // Generate unique booking ID
     const bookingId = `BK-${uuidv4().substring(0, 8)}`;
 
+    
+    // Xử lý 2 TH cho thông tin người dùng:
+    // 1.Sử dụng thông tin từ DTO (được gửi từ FE)
+    // Trường hợp người dùng muốn đặt phòng cho người khác
+    const guestName = createBookingDto.guest_name;
+    const guestEmail = createBookingDto.guest_email;
+    const guestPhone = createBookingDto.guest_phone;
+
+    // 2.Tự động lấy từ thông tin người dùng đã đăng nhập
+    // Nếu không có thông tin trong DTO
+    const user = await this.userModel.findById(userId);
+    const bookingGuestName = guestName || user.name;
+    const bookingGuestEmail = guestEmail || user.email;
+    const bookingGuestPhone = guestPhone || user.phone;
+
     // Create booking
     const booking = await this.bookingModel.create({
       booking_id: bookingId,
@@ -134,9 +149,9 @@ export class BookingsService {
       payment_due_date: paymentDueDate,
       payment_status: PaymentStatus.PENDING,
       payment_method: createBookingDto.payment_method,
-      guest_name: createBookingDto.guest_name,
-      guest_email: createBookingDto.guest_email,
-      guest_phone: createBookingDto.guest_phone,
+      guest_name: bookingGuestName,
+      guest_email: bookingGuestEmail,
+      guest_phone: bookingGuestPhone,
       special_requests: createBookingDto.special_requests,
       number_of_guests: createBookingDto.number_of_guests || 1,
     });
@@ -326,18 +341,30 @@ export class BookingsService {
   }
 
   private async checkCancellationPolicy(booking: any): Promise<boolean> {
-    // If booking is non-cancelable, it can't be canceled
+    // Lấy thông tin về khách sạn để kiểm tra chính sách đặt cọc
+    const hotel = await this.hotelModel.findById(booking.hotel_id);
+    if (!hotel) {
+      throw new NotFoundException('Hotel not found');
+    }
+
+    // Kiểm tra xem khách sạn có cho phép đặt cọc không
+    // Nếu không cho phép đặt cọc, không thể hủy đặt phòng
+    if (!hotel.accept_deposit) {
+      return false;
+    }
+
+    // Nếu booking là non-cancelable, không thể hủy
     if (booking.cancellation_policy === CancellationPolicy.NON_CANCELABLE) {
       return false;
     }
 
-    // Check cancellation deadline (e.g., 24 hours before check-in)
+    // Kiểm tra thời hạn hủy (2 ngày trước check-in)
     const checkInDate = dayjs.utc(booking.check_in_date);
     const now = dayjs.utc();
-    const hoursUntilCheckIn = checkInDate.diff(now, 'hour');
+    const daysUntilCheckIn = checkInDate.diff(now, 'day');
 
-    // Allow cancellation if more than 24 hours before check-in
-    return hoursUntilCheckIn >= 24;
+    // Cho phép hủy nếu còn ít nhất 2 ngày trước check-in
+    return daysUntilCheckIn >= 2;
   }
 
   private async processRefund(booking: any, userId: string) {

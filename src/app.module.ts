@@ -13,6 +13,7 @@ import { TransformInterceptor } from './core/transform.interceptor';
 import { HotelsModule } from '@/modules/hotels/hotels.module';
 import { RoomsModule } from '@/modules/rooms/rooms.module';
 import { RoomAvailabilityModule } from '@/modules/room-availability/room-availability.module';
+import { BookingsModule } from '@/modules/bookings/bookings.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { RoomAvailabilityModule } from '@/modules/room-availability/room-availab
     HotelsModule,
     RoomsModule,
     RoomAvailabilityModule,
+    BookingsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -32,6 +32,29 @@ export class User {
     @Prop()
     codeExpired: Date;
 
+    // Thêm trường balance cho ví nội bộ
+    @Prop({ default: 0 })
+    account_balance: number;
+
+    // Thêm trường transactions để lưu lịch sử giao dịch
+    @Prop([{
+        type: {
+            type: String,
+            enum: ['DEPOSIT', 'REFUND', 'PAYMENT', 'WITHDRAWAL'],
+            required: true
+        },
+        amount: {
+            type: Number,
+            required: true
+        },
+        description: String,
+        reference_id: String,
+        created_at: {
+            type: Date,
+            default: Date.now
+        }
+    }])
+    transactions: Record<string, any>[];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

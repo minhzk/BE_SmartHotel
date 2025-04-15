@@ -2,6 +2,8 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  forwardRef,
+  Inject,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -19,6 +21,7 @@ export class PaymentsService {
     @InjectModel(Payment.name)
     private paymentModel: Model<Payment>,
     private readonly vnpayService: VnpayService,
+    @Inject(forwardRef(() => BookingsService))
     private readonly bookingsService: BookingsService,
   ) {}
 
@@ -306,5 +309,62 @@ export class PaymentsService {
       amount: payment.amount,
       payment_date: payment.payment_date,
     };
+  }
+
+  async processRefund(
+    paymentId: string,
+    userId: string,
+    amount?: number,
+  ): Promise<any> {
+    // Tìm giao dịch thanh toán gốc
+    const originalPayment = await this.findOne(paymentId, userId);
+
+    if (originalPayment.status !== PaymentStatus.COMPLETED) {
+      throw new BadRequestException('Only completed payments can be refunded');
+    }
+
+    // Nếu không chỉ định số tiền hoàn, hoàn toàn bộ
+    const refundAmount = amount || originalPayment.amount;
+
+    if (refundAmount <= 0 || refundAmount > originalPayment.amount) {
+      throw new BadRequestException('Invalid refund amount');
+    }
+
+    // Xử lý hoàn tiền dựa trên phương thức thanh toán
+    if (originalPayment.payment_method === 'vnpay') {
+      // Gọi đến VNPay service để xử lý hoàn tiền
+      return await this.vnpayService.createRefundTransaction(
+        originalPayment.transaction_id,
+        refundAmount,
+        `Hoàn tiền cho đặt phòng ${originalPayment.booking_id}`,
+      );
+    } else if (originalPayment.payment_method === 'wallet') {
+      // Tạo ID giao dịch hoàn tiền
+      const refundTransactionId = `RF-${uuidv4().substring(0, 8)}`;
+
+      // Tạo bản ghi giao dịch hoàn tiền
+      const refundPayment = await this.paymentModel.create({
+        transaction_id: refundTransactionId,
+        booking_id: originalPayment.booking_id,
+        user_id: originalPayment.user_id,
+        amount: refundAmount,
+        payment_type: PaymentType.REFUND,
+        payment_method: 'wallet',
+        status: PaymentStatus.COMPLETED,
+        payment_date: new Date(),
+      });
+
+      return {
+        transaction_id: refundPayment.transaction_id,
+        original_transaction_id: originalPayment.transaction_id,
+        amount: refundAmount,
+        status: PaymentStatus.REFUNDED,
+        message: 'Refunded to wallet successfully',
+      };
+    }
+
+    throw new BadRequestException(
+      `Refund not supported for payment method: ${originalPayment.payment_method}`,
+    );
   }
 }

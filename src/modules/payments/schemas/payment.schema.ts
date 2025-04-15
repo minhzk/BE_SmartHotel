@@ -9,6 +9,7 @@ export enum PaymentType {
   REMAINING = 'remaining',
   FULL_PAYMENT = 'full_payment',
   WALLET_DEPOSIT = 'wallet_deposit',
+  REFUND = 'refund',
 }
 
 export enum PaymentMethod {

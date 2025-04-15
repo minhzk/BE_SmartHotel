@@ -2,6 +2,8 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  forwardRef,
+  Inject,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -23,6 +25,8 @@ import { RoomStatus } from '../room-availability/schemas/room-availability.schem
 import { User } from '../users/schemas/user.schema';
 import { Room } from '../rooms/schemas/room.schema';
 import { Hotel } from '../hotels/schemas/hotel.schema';
+import { PaymentsService } from '../payments/payments.service';
+import { Payment } from '../payments/schemas/payment.schema';
 import mongoose from 'mongoose';
 import aqp from 'api-query-params';
 
@@ -39,7 +43,11 @@ export class BookingsService {
     private roomModel: Model<Room>,
     @InjectModel(Hotel.name)
     private hotelModel: Model<Hotel>,
+    @InjectModel(Payment.name)
+    private paymentModel: Model<Payment>,
     private readonly roomAvailabilityService: RoomAvailabilityService,
+    @Inject(forwardRef(() => PaymentsService))
+    private readonly paymentsService: PaymentsService,
   ) {}
 
   async create(userId: string, createBookingDto: CreateBookingDto) {
@@ -116,7 +124,6 @@ export class BookingsService {
     // Generate unique booking ID
     const bookingId = `BK-${uuidv4().substring(0, 8)}`;
 
-    
     // Xử lý 2 TH cho thông tin người dùng:
     // 1.Sử dụng thông tin từ DTO (được gửi từ FE)
     // Trường hợp người dùng muốn đặt phòng cho người khác
@@ -368,23 +375,49 @@ export class BookingsService {
   }
 
   private async processRefund(booking: any, userId: string) {
-    // In a real system, this would call payment provider's refund API
-    // For our system, we'll credit the user's wallet
-
     try {
-      // Add refund amount to user's wallet
-      await this.userModel.findByIdAndUpdate(userId, {
-        $inc: { account_balance: booking.deposit_amount },
-        $push: {
-          transactions: {
-            type: 'REFUND',
-            amount: booking.deposit_amount,
-            description: `Refund for booking ${booking.booking_id}`,
-            reference_id: booking._id.toString(),
-            created_at: new Date(),
-          },
-        },
+      // Tìm giao dịch thanh toán liên quan đến booking này
+      const payment = await this.paymentModel.findOne({
+        booking_id: booking.booking_id
       });
+
+      if (payment) {
+        if (payment.payment_method === 'vnpay') {
+          // Nếu thanh toán qua VNPay, sử dụng PaymentsService để hoàn tiền qua VNPay
+          await this.paymentsService.processRefund(
+            payment.transaction_id,
+            userId,
+          );
+        } else if (payment.payment_method === 'wallet') {
+          // Nếu thanh toán qua ví, hoàn tiền vào ví
+          await this.userModel.findByIdAndUpdate(userId, {
+            $inc: { account_balance: booking.deposit_amount },
+            $push: {
+              transactions: {
+                type: 'REFUND',
+                amount: booking.deposit_amount,
+                description: `Refund for booking ${booking.booking_id}`,
+                reference_id: booking._id.toString(),
+                created_at: new Date(),
+              },
+            },
+          });
+        }
+      } else {
+        // Nếu không tìm thấy giao dịch thanh toán (trường hợp dữ liệu cũ), hoàn tiền vào ví
+        await this.userModel.findByIdAndUpdate(userId, {
+          $inc: { account_balance: booking.deposit_amount },
+          $push: {
+            transactions: {
+              type: 'REFUND',
+              amount: booking.deposit_amount,
+              description: `Refund for booking ${booking.booking_id}`,
+              reference_id: booking._id.toString(),
+              created_at: new Date(),
+            },
+          },
+        });
+      }
 
       // Update booking payment status
       await this.bookingModel.findByIdAndUpdate(booking._id, {

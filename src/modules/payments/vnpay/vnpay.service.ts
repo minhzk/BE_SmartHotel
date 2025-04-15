@@ -16,14 +16,18 @@ export class VnpayService {
     @InjectModel(Payment.name) private paymentModel: Model<Payment>,
   ) {}
 
-  private readonly vnpTmnCode = '2QXUI4D4';
-  private readonly vnpHashSecret = 'NYYZTXVJINTPXOFKGZDUGcohcgesyegp';
+  private readonly vnpTmnCode =
+    this.configService.get<string>('VNPAY_TMN_CODE');
+  private readonly vnpHashSecret =
+    this.configService.get<string>('VNPAY_HASH_SECRET');
   private readonly vnpUrl =
+    this.configService.get<string>('VNPAY_URL') ||
     'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html';
   private readonly vnpReturnUrl =
     this.configService.get<string>('VNPAY_RETURN_URL') ||
     'http://localhost:8080/api/v1/payments/vnpay-return';
   private readonly vnpApiUrl =
+    this.configService.get<string>('VNPAY_API_URL') ||
     'https://sandbox.vnpayment.vn/merchant_webapi/api/transaction';
   private readonly ipnUrl =
     this.configService.get<string>('VNPAY_IPN_URL') ||
@@ -61,6 +65,7 @@ export class VnpayService {
     const currCode = 'VND';
     let vnp_Params = {};
 
+    // Populate parameters without encoding OrderInfo yet
     vnp_Params['vnp_Version'] = '2.1.0';
     vnp_Params['vnp_Command'] = 'pay';
     vnp_Params['vnp_TmnCode'] = tmnCode;
@@ -68,7 +73,7 @@ export class VnpayService {
     vnp_Params['vnp_CurrCode'] = currCode;
     vnp_Params['vnp_TxnRef'] = orderId;
     vnp_Params['vnp_OrderInfo'] =
-      `Thanh toan dat phong ${createDto.booking_id}`;
+      `Thanh toan dat phong ${createDto.booking_id}`; // No encoding here
     vnp_Params['vnp_OrderType'] = 'other';
     vnp_Params['vnp_Amount'] = amount;
     vnp_Params['vnp_ReturnUrl'] = returnUrl;
@@ -78,16 +83,31 @@ export class VnpayService {
     // Sắp xếp các field theo thứ tự a-z trước khi sign
     vnp_Params = this.sortObject(vnp_Params);
 
-    // Tạo hmac
-    const signData = querystring.stringify(vnp_Params);
+    // Create sign string using direct concatenation (no querystring.stringify)
+    const signData = Object.keys(vnp_Params)
+      .map((key) => `${key}=${vnp_Params[key]}`)
+      .join('&');
+
+    console.log('String to sign:', signData);
+    console.log('Hash secret:', secretKey);
+
+    // Create hash
     const hmac = crypto.createHmac('sha512', secretKey);
     const signed = hmac.update(Buffer.from(signData, 'utf-8')).digest('hex');
     vnp_Params['vnp_SecureHash'] = signed;
 
-    // Tạo payment URL
-    vnpUrl += '?' + querystring.stringify(vnp_Params);
+    console.log('Generated hash:', signed);
 
-    return { payment, paymentUrl: vnpUrl };
+    // Now build URL with proper encoding
+    const urlParams = new URLSearchParams();
+    Object.keys(vnp_Params).forEach((key) => {
+      urlParams.append(key, vnp_Params[key]);
+    });
+
+    const finalUrl = `${vnpUrl}?${urlParams.toString()}`;
+    console.log('Final payment URL:', finalUrl);
+
+    return { payment, paymentUrl: finalUrl };
   }
 
   async processReturnUrl(vnpParams: any): Promise<any> {
@@ -164,6 +184,69 @@ export class VnpayService {
     return {
       RspCode: result.success ? '00' : '99',
       Message: result.success ? 'Confirm Success' : 'Confirm Fail',
+    };
+  }
+
+  // Thêm phương thức hoàn tiền VNPay
+  async createRefundTransaction(
+    paymentId: string,
+    amount: number,
+    description: string,
+  ): Promise<any> {
+    // Tìm giao dịch thanh toán gốc
+    const originalPayment = await this.paymentModel.findOne({
+      transaction_id: paymentId,
+      payment_method: 'vnpay',
+      status: PaymentStatus.COMPLETED,
+    });
+
+    if (!originalPayment) {
+      throw new BadRequestException(
+        'Original payment not found or not eligible for refund',
+      );
+    }
+
+    // Tạo ID giao dịch hoàn tiền
+    const refundTransactionId = `RF-${uuidv4().substring(0, 8)}`;
+
+    // Tạo giao dịch hoàn tiền trong cơ sở dữ liệu
+    const refundPayment = await this.paymentModel.create({
+      transaction_id: refundTransactionId,
+      booking_id: originalPayment.booking_id,
+      user_id: originalPayment.user_id,
+      amount: amount,
+      payment_type: PaymentType.REFUND,
+      payment_method: 'vnpay',
+      status: PaymentStatus.PENDING,
+      vnp_transaction_id: originalPayment.vnp_transaction_id,
+      vnp_transaction_no: originalPayment.vnp_transaction_no,
+      vnp_bank_code: originalPayment.vnp_bank_code,
+    });
+
+    // Trong môi trường thực tế, bạn sẽ gọi API hoàn tiền của VNPay ở đây
+    // Sandbox của VNPay không hỗ trợ đầy đủ API Refund, nên chúng ta giả lập kết quả
+
+    // Giả lập gọi API hoàn tiền thành công
+    const refundResult = {
+      success: true,
+      refundId: refundTransactionId,
+      message: 'Refund processed successfully',
+      originalTransactionId: originalPayment.transaction_id,
+    };
+
+    // Cập nhật trạng thái giao dịch hoàn tiền
+    await refundPayment.updateOne({
+      status: PaymentStatus.REFUNDED,
+      payment_date: new Date(),
+      raw_response: refundResult,
+    });
+
+    return {
+      transaction_id: refundTransactionId,
+      original_transaction_id: originalPayment.transaction_id,
+      amount: amount,
+      status: PaymentStatus.REFUNDED,
+      message: 'Refund processed successfully',
     };
   }
 

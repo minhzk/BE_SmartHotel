@@ -73,7 +73,7 @@ export class VnpayService {
     vnp_Params['vnp_CurrCode'] = currCode;
     vnp_Params['vnp_TxnRef'] = orderId;
     vnp_Params['vnp_OrderInfo'] =
-      `Thanh toan dat phong ${createDto.booking_id}`; // No encoding here
+      `Thanh toan dat phong ${createDto.booking_id}`;
     vnp_Params['vnp_OrderType'] = 'other';
     vnp_Params['vnp_Amount'] = amount;
     vnp_Params['vnp_ReturnUrl'] = returnUrl;
@@ -83,31 +83,16 @@ export class VnpayService {
     // Sắp xếp các field theo thứ tự a-z trước khi sign
     vnp_Params = this.sortObject(vnp_Params);
 
-    // Create sign string using direct concatenation (no querystring.stringify)
-    const signData = Object.keys(vnp_Params)
-      .map((key) => `${key}=${vnp_Params[key]}`)
-      .join('&');
-
-    console.log('String to sign:', signData);
-    console.log('Hash secret:', secretKey);
-
-    // Create hash
-    const hmac = crypto.createHmac('sha512', secretKey);
-    const signed = hmac.update(Buffer.from(signData, 'utf-8')).digest('hex');
+    let querystring = require('qs');
+    let signData = querystring.stringify(vnp_Params, { encode: false });
+    let hmac = crypto.createHmac('sha512', secretKey);
+    let signed = hmac.update(Buffer.from(signData, 'utf-8')).digest('hex');
     vnp_Params['vnp_SecureHash'] = signed;
+    vnpUrl += '?' + querystring.stringify(vnp_Params, { encode: false });
 
-    console.log('Generated hash:', signed);
+    console.log('Final payment URL:', vnpUrl);
 
-    // Now build URL with proper encoding
-    const urlParams = new URLSearchParams();
-    Object.keys(vnp_Params).forEach((key) => {
-      urlParams.append(key, vnp_Params[key]);
-    });
-
-    const finalUrl = `${vnpUrl}?${urlParams.toString()}`;
-    console.log('Final payment URL:', finalUrl);
-
-    return { payment, paymentUrl: finalUrl };
+    return { payment, paymentUrl: vnpUrl };
   }
 
   async processReturnUrl(vnpParams: any): Promise<any> {
@@ -250,17 +235,20 @@ export class VnpayService {
     };
   }
 
-  // Helper function to sort parameters alphabetically
+  // Helper function to sort parameters alphabetically and encode as required by VNPay
   private sortObject(obj: any) {
-    const sorted: any = {};
-    const keys = Object.keys(obj).sort();
-
-    for (const key of keys) {
+    let sorted = {};
+    let str = [];
+    let key;
+    for (key in obj) {
       if (obj.hasOwnProperty(key)) {
-        sorted[key] = obj[key];
+        str.push(encodeURIComponent(key));
       }
     }
-
+    str.sort();
+    for (key = 0; key < str.length; key++) {
+      sorted[str[key]] = encodeURIComponent(obj[str[key]]).replace(/%20/g, '+');
+    }
     return sorted;
   }
 

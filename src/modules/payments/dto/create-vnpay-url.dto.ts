@@ -34,4 +34,8 @@ export class CreateVnpayUrlDto {
   @IsString()
   @IsOptional()
   client_ip?: string;
+
+  @IsString()
+  @IsOptional()
+  bank_code?: string;
 }

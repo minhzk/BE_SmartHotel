@@ -23,6 +23,7 @@ export class VnpayService {
   private readonly vnpUrl =
     this.configService.get<string>('VNPAY_URL') ||
     'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html';
+  // Đổi URL return mặc định thành Backend endpoint
   private readonly vnpReturnUrl =
     this.configService.get<string>('VNPAY_RETURN_URL') ||
     'http://localhost:8080/api/v1/payments/vnpay-return';
@@ -32,6 +33,10 @@ export class VnpayService {
   private readonly ipnUrl =
     this.configService.get<string>('VNPAY_IPN_URL') ||
     'http://localhost:8080/api/v1/payments/vnpay-ipn';
+  // Thêm Frontend URL để redirect sau khi xử lý thanh toán
+  private readonly frontendResultUrl =
+    this.configService.get<string>('FRONTEND_PAYMENT_RESULT_URL') ||
+    'http://localhost:3000/payment/result';
 
   async createPaymentUrl(
     createDto: CreateVnpayUrlDto,
@@ -55,7 +60,6 @@ export class VnpayService {
     const secretKey = this.vnpHashSecret;
     let vnpUrl = this.vnpUrl;
 
-    const returnUrl = createDto.redirect_url || this.vnpReturnUrl;
     const date = new Date();
     const createDate = dayjs(date).format('YYYYMMDDHHmmss');
     const orderId = payment._id.toString();
@@ -76,7 +80,7 @@ export class VnpayService {
       `Thanh toan dat phong ${createDto.booking_id}`;
     vnp_Params['vnp_OrderType'] = 'other';
     vnp_Params['vnp_Amount'] = amount;
-    vnp_Params['vnp_ReturnUrl'] = returnUrl;
+    vnp_Params['vnp_ReturnUrl'] = this.vnpReturnUrl;
     vnp_Params['vnp_IpAddr'] = createDto.client_ip || '127.0.0.1';
     vnp_Params['vnp_CreateDate'] = createDate;
 
@@ -233,6 +237,11 @@ export class VnpayService {
       status: PaymentStatus.REFUNDED,
       message: 'Refund processed successfully',
     };
+  }
+
+  // Getter cho frontend URL
+  getFrontendResultUrl(): string {
+    return this.frontendResultUrl;
   }
 
   // Helper function to sort parameters alphabetically and encode as required by VNPay

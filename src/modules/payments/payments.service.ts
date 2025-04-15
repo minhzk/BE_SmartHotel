@@ -238,6 +238,45 @@ export class PaymentsService {
     return await this.vnpayService.processReturnUrl(vnpParams);
   }
 
+  async processVnpayReturnWithRedirect(vnpParams: any, res: any): Promise<any> {
+    try {
+      // Xử lý thanh toán
+      const result = await this.vnpayService.processReturnUrl(vnpParams);
+
+      // Tạo URL để redirect đến frontend
+      const frontendUrl = new URL(this.vnpayService.getFrontendResultUrl());
+
+      // Thêm các tham số kết quả thanh toán vào URL
+      frontendUrl.searchParams.append('success', result.success.toString());
+      frontendUrl.searchParams.append(
+        'transaction_id',
+        result.paymentInfo.transaction_id,
+      );
+      frontendUrl.searchParams.append(
+        'booking_id',
+        result.paymentInfo.booking_id,
+      );
+      frontendUrl.searchParams.append('status', result.paymentInfo.status);
+
+      // Redirect người dùng đến frontend
+      res.redirect(frontendUrl.toString());
+
+      // Không trả về dữ liệu vì đã redirect
+      return null;
+    } catch (error) {
+      // Nếu có lỗi, vẫn redirect về frontend với thông báo lỗi
+      const frontendUrl = new URL(this.vnpayService.getFrontendResultUrl());
+      frontendUrl.searchParams.append('success', 'false');
+      frontendUrl.searchParams.append(
+        'error',
+        error.message || 'Payment processing failed',
+      );
+
+      res.redirect(frontendUrl.toString());
+      return null;
+    }
+  }
+
   async processVnpayIpn(vnpParams: any) {
     return await this.vnpayService.processIpnUrl(vnpParams);
   }

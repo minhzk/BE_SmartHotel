@@ -7,6 +7,8 @@ import {
   Query,
   Req,
   Request,
+  Res,
+  Response,
 } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
@@ -67,8 +69,11 @@ export class PaymentsController {
   @Public()
   @Get('vnpay-return')
   @ResponseMessage('Process VNPay return successfully')
-  processVnpayReturn(@Query() query: any) {
-    return this.paymentsService.processVnpayReturn(query);
+  processVnpayReturn(
+    @Query() query: any,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.paymentsService.processVnpayReturnWithRedirect(query, res);
   }
 
   @Public()

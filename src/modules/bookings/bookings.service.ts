@@ -107,8 +107,13 @@ export class BookingsService {
       );
     }
 
-    // Calculate number of nights
-    const nights = checkOutDate.diff(checkInDate, 'day');
+    // Calculate number of nights - sửa cách tính số đêm ở đây
+    // Áp dụng quy tắc mới:
+    // - Check-in: vào 12h trưa của ngày check-in
+    // - Check-out: vào 12h trưa của ngày check-out
+    // - Số đêm = số ngày check-out - số ngày check-in
+    // Ví dụ: Check-in 25/05, Check-out 27/05 => Số đêm = 27-25 + 1 = 3 đêm
+    const nights = checkOutDate.diff(checkInDate, 'day') + 1;
 
     // Calculate total amount if not provided
     let totalAmount = createBookingDto.total_amount;
@@ -140,14 +145,14 @@ export class BookingsService {
     const bookingGuestEmail = guestEmail || user.email;
     const bookingGuestPhone = guestPhone || user.phone;
 
-    // Create booking
+    // Create booking - thêm thông tin chi tiết về check-in/check-out time
     const booking = await this.bookingModel.create({
       booking_id: bookingId,
       user_id: userId,
       hotel_id: createBookingDto.hotel_id,
       room_id: createBookingDto.room_id,
-      check_in_date: checkInDate.toDate(),
-      check_out_date: checkOutDate.toDate(),
+      check_in_date: checkInDate.hour(12).minute(0).second(0).toDate(), // Check-in at 12:00 PM
+      check_out_date: checkOutDate.hour(12).minute(0).second(0).toDate(), // Check-out at 12:00 PM
       total_amount: totalAmount,
       deposit_amount: depositAmount,
       deposit_status: DepositStatus.UNPAID,

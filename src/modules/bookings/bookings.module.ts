@@ -9,6 +9,7 @@ import { Room, RoomSchema } from '../rooms/schemas/room.schema';
 import { Hotel, HotelSchema } from '../hotels/schemas/hotel.schema';
 import { PaymentsModule } from '../payments/payments.module';
 import { Payment, PaymentSchema } from '../payments/schemas/payment.schema';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { Payment, PaymentSchema } from '../payments/schemas/payment.schema';
     ]),
     RoomAvailabilityModule,
     forwardRef(() => PaymentsModule),
+    NotificationsModule,
   ],
   controllers: [BookingsController],
   providers: [BookingsService],

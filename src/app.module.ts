@@ -15,6 +15,10 @@ import { RoomsModule } from '@/modules/rooms/rooms.module';
 import { RoomAvailabilityModule } from '@/modules/room-availability/room-availability.module';
 import { BookingsModule } from '@/modules/bookings/bookings.module';
 import { PaymentsModule } from '@/modules/payments/payments.module';
+import { ReviewsModule } from '@/modules/reviews/reviews.module';
+import { NotificationsModule } from '@/modules/notifications/notifications.module';
+import { SentimentModule } from '@/modules/sentiment/sentiment.module';
+import { ChatbotModule } from '@/modules/chatbot/chatbot.module';
 
 @Module({
   imports: [
@@ -34,7 +38,6 @@ import { PaymentsModule } from '@/modules/payments/payments.module';
         transport: {
           host: 'smtp.gmail.com',
           port: 465,
-          // ignoreTLS: true,
           secure: true,
           auth: {
             user: configService.get<string>('MAIL_USER'),
@@ -45,12 +48,11 @@ import { PaymentsModule } from '@/modules/payments/payments.module';
           },
         },
         defaults: {
-          from: '"No Reply" <no-reply@localhost>',
+          from: '"Smart Hotel" <no-reply@smarthotel.com>',
         },
-        // preview: true,
         template: {
           dir: process.cwd() + '/src/mail/templates/',
-          adapter: new HandlebarsAdapter(), // or new PugAdapter() or new EjsAdapter()
+          adapter: new HandlebarsAdapter(),
           options: {
             strict: true,
           },
@@ -63,6 +65,10 @@ import { PaymentsModule } from '@/modules/payments/payments.module';
     RoomAvailabilityModule,
     BookingsModule,
     PaymentsModule,
+    ReviewsModule,
+    NotificationsModule,
+    SentimentModule,
+    ChatbotModule,
   ],
   controllers: [AppController],
   providers: [

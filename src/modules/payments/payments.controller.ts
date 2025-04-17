@@ -81,16 +81,22 @@ export class PaymentsController {
     return this.paymentsService.getPaymentStatus(id, req.user._id);
   }
 
-  // @Post('wallet/deposit')
-  // @ResponseMessage('Create wallet deposit successfully')
-  // depositToWallet(@Request() req, @Body() walletDepositDto: WalletDepositDto) {
-  //   const clientIp =
-  //     req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-  //   return this.paymentsService.depositToWallet(
-  //     req.user._id,
-  //     walletDepositDto.amount,
-  //     clientIp,
-  //     walletDepositDto.redirect_url,
-  //   );
+  @Post('wallet/deposit')
+  @ResponseMessage('Create wallet deposit successfully')
+  depositToWallet(@Request() req, @Body() walletDepositDto: WalletDepositDto) {
+    const clientIp =
+      req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    return this.paymentsService.depositToWallet(
+      req.user._id,
+      walletDepositDto.amount,
+      clientIp,
+      walletDepositDto.redirect_url,
+    );
+  }
+
+  // @Post(':id/retry')
+  // @ResponseMessage('Retry failed payment successfully')
+  // retryFailedPayment(@Request() req, @Param('id') id: string) {
+  //   return this.paymentsService.retryFailedPayment(id, req.user._id);
   // }
 }

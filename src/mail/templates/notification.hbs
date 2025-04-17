@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>{{title}}</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            min-width: 100%;
+            font-family: Arial, sans-serif;
+            font-size: 16px;
+            line-height: 1.5;
+            background-color: #FAFAFA;
+            color: #222222;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background-color: #1976D2;
+            padding: 24px;
+            color: #ffffff;
+        }
+
+        .content {
+            padding: 24px;
+            background-color: #ffffff;
+        }
+
+        .button {
+            display: inline-block;
+            background-color: #1976D2;
+            color: white;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            margin-top: 16px;
+        }
+
+        .footer {
+            padding: 24px;
+            text-align: center;
+            font-size: 14px;
+            color: #757575;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 style="font-size: 24px; font-weight: 700; margin: 0; text-align: center;">
+                Smart Hotel
+            </h1>
+        </div>
+        <div class="content">
+            <h2>{{title}}</h2>
+            <p>Xin chào {{name}},</p>
+            <p>{{message}}</p>
+
+            {{#if buttonText}}
+            <a href="{{buttonUrl}}" class="button">{{buttonText}}</a>
+            {{/if}}
+
+            <p style="margin-top: 24px;">Trân trọng,<br>Đội ngũ Smart Hotel</p>
+        </div>
+        <div class="footer">
+            <p>&copy; 2025 Smart Hotel. All rights reserved.</p>
+            <p>Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi qua email: support@smarthotel.com</p>
+        </div>
+    </div>
+</body>
+
+</html>

@@ -406,4 +406,9 @@ export class PaymentsService {
       `Refund not supported for payment method: ${originalPayment.payment_method}`,
     );
   }
+  
+  getFrontendResultUrl(): string {
+    // Return the frontend URL where users should be redirected after payment
+    return process.env.FRONTEND_PAYMENT_RESULT_URL || 'http://localhost:3000/payment-result';
+  }
 }

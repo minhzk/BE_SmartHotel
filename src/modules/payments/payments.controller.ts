@@ -19,6 +19,34 @@ import { Public, ResponseMessage } from '@/decorator/customize';
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
+  @Public()
+  @Get('vnpay-return')
+  async processVnpayReturn(
+    @Query() query: any,
+    @Res() res, // Loại bỏ { passthrough: true }
+  ) {
+    try {
+      await this.paymentsService.processVnpayReturnWithRedirect(query, res);
+      // Không return gì ở đây vì response đã được xử lý trong service
+    } catch (error) {
+      console.error('Error processing payment:', error);
+      const frontendUrl = new URL(this.paymentsService.getFrontendResultUrl());
+      frontendUrl.searchParams.append('success', 'false');
+      frontendUrl.searchParams.append(
+        'error',
+        error.message || 'Payment processing failed',
+      );
+      res.redirect(frontendUrl.toString());
+    }
+  }
+
+  @Public()
+  @Get('vnpay-ipn')
+  @ResponseMessage('Process VNPay IPN successfully')
+  processVnpayIpn(@Query() query: any) {
+    return this.paymentsService.processVnpayIpn(query);
+  }
+
   @Post()
   @ResponseMessage('Create payment successfully')
   createPayment(@Request() req, @Body() createPaymentDto: CreatePaymentDto) {
@@ -53,33 +81,16 @@ export class PaymentsController {
     return this.paymentsService.getPaymentStatus(id, req.user._id);
   }
 
-  @Post('wallet/deposit')
-  @ResponseMessage('Create wallet deposit successfully')
-  depositToWallet(@Request() req, @Body() walletDepositDto: WalletDepositDto) {
-    const clientIp =
-      req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-    return this.paymentsService.depositToWallet(
-      req.user._id,
-      walletDepositDto.amount,
-      clientIp,
-      walletDepositDto.redirect_url,
-    );
-  }
-
-  @Public()
-  @Get('vnpay-return')
-  @ResponseMessage('Process VNPay return successfully')
-  processVnpayReturn(
-    @Query() query: any,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    return this.paymentsService.processVnpayReturnWithRedirect(query, res);
-  }
-
-  @Public()
-  @Get('vnpay-ipn')
-  @ResponseMessage('Process VNPay IPN successfully')
-  processVnpayIpn(@Query() query: any) {
-    return this.paymentsService.processVnpayIpn(query);
-  }
+  // @Post('wallet/deposit')
+  // @ResponseMessage('Create wallet deposit successfully')
+  // depositToWallet(@Request() req, @Body() walletDepositDto: WalletDepositDto) {
+  //   const clientIp =
+  //     req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  //   return this.paymentsService.depositToWallet(
+  //     req.user._id,
+  //     walletDepositDto.amount,
+  //     clientIp,
+  //     walletDepositDto.redirect_url,
+  //   );
+  // }
 }

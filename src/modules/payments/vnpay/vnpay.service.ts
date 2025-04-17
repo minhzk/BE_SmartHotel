@@ -100,17 +100,24 @@ export class VnpayService {
   }
 
   async processReturnUrl(vnpParams: any): Promise<any> {
+    console.log('Processing VNPay return with params:', vnpParams);
+
     const secureHash = vnpParams['vnp_SecureHash'];
     delete vnpParams['vnp_SecureHash'];
     delete vnpParams['vnp_SecureHashType'];
 
     // Sắp xếp các field theo thứ tự a-z trước khi verify
     const sortedParams = this.sortObject(vnpParams);
-    const signData = querystring.stringify(sortedParams);
+
+    const querystring = require('qs');
+    const signData = querystring.stringify(sortedParams, { encode: false });
     const hmac = crypto.createHmac('sha512', this.vnpHashSecret);
     const calculatedHash = hmac
       .update(Buffer.from(signData, 'utf-8'))
       .digest('hex');
+
+    console.log('Calculated hash:', calculatedHash);
+    console.log('Received hash:', secureHash);
 
     // Verify signature
     if (secureHash !== calculatedHash) {
@@ -123,9 +130,28 @@ export class VnpayService {
     const bankCode = vnpParams['vnp_BankCode'];
 
     // Tìm payment theo transaction reference
-    const payment = await this.paymentModel.findById(transactionRef);
+    let payment;
+    try {
+      // Thử tìm bằng ObjectId
+      payment = await this.paymentModel.findById(transactionRef);
+    } catch (error) {
+      console.log('Error finding payment by ID:', error.message);
+    }
+
+    // Nếu không tìm thấy bằng ID, thử các phương pháp khác
     if (!payment) {
-      throw new BadRequestException('Payment not found');
+      payment = await this.paymentModel.findOne({
+        $or: [
+          { transaction_id: transactionRef },
+          { vnp_transaction_id: transactionRef },
+        ],
+      });
+    }
+
+    if (!payment) {
+      throw new BadRequestException(
+        `Payment not found for reference: ${transactionRef}`,
+      );
     }
 
     // Cập nhật thông tin thanh toán

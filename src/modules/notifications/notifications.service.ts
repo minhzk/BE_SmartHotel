@@ -6,6 +6,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Notification } from './schemas/notification.schema';
+import { NotificationType } from './schemas/notification.schema';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import aqp from 'api-query-params';
 import mongoose from 'mongoose';
@@ -123,5 +124,22 @@ export class NotificationsService {
     await this.notificationModel.findByIdAndDelete(id);
 
     return { deleted: true };
+  }
+
+  // Thêm phương thức này để tạo thông báo đặt phòng
+  async createBookingNotification(
+    userId: string,
+    bookingId: string,
+    hotelName: string,
+  ) {
+    const notification = await this.create({
+      user_id: userId,
+      type: NotificationType.BOOKING_CREATED,
+      title: 'Đặt phòng thành công',
+      message: `Bạn đã đặt phòng thành công tại ${hotelName}. Mã đặt phòng: ${bookingId}`,
+      data: { booking_id: bookingId },
+    });
+
+    return notification;
   }
 }

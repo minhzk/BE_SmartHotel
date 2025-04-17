@@ -29,6 +29,7 @@ import { PaymentsService } from '../payments/payments.service';
 import { Payment } from '../payments/schemas/payment.schema';
 import mongoose from 'mongoose';
 import aqp from 'api-query-params';
+import { NotificationsService } from '../notifications/notifications.service';
 
 dayjs.extend(utc);
 
@@ -48,6 +49,7 @@ export class BookingsService {
     private readonly roomAvailabilityService: RoomAvailabilityService,
     @Inject(forwardRef(() => PaymentsService))
     private readonly paymentsService: PaymentsService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async create(userId: string, createBookingDto: CreateBookingDto) {
@@ -170,6 +172,19 @@ export class BookingsService {
       checkOutDate.subtract(1, 'day').toDate(), // Not including checkout day
       RoomStatus.BOOKED,
     );
+
+    // Create notification
+    try {
+      const hotel = await this.hotelModel.findById(createBookingDto.hotel_id);
+      await this.notificationsService.createBookingNotification(
+        userId,
+        booking.booking_id,
+        hotel.name,
+      );
+    } catch (error) {
+      console.error(`Failed to create notification: ${error.message}`);
+      // Do not affect the main flow if notification creation fails
+    }
 
     return booking;
   }
@@ -378,7 +393,7 @@ export class BookingsService {
     try {
       // Tìm giao dịch thanh toán liên quan đến booking này
       const payment = await this.paymentModel.findOne({
-        booking_id: booking.booking_id
+        booking_id: booking.booking_id,
       });
 
       if (payment) {

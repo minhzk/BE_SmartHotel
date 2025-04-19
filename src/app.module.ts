@@ -19,6 +19,7 @@ import { ReviewsModule } from '@/modules/reviews/reviews.module';
 import { NotificationsModule } from '@/modules/notifications/notifications.module';
 import { SentimentModule } from '@/modules/sentiment/sentiment.module';
 import { ChatbotModule } from '@/modules/chatbot/chatbot.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { ChatbotModule } from '@/modules/chatbot/chatbot.module';
     NotificationsModule,
     SentimentModule,
     ChatbotModule,
+    EventEmitterModule.forRoot(),
   ],
   controllers: [AppController],
   providers: [

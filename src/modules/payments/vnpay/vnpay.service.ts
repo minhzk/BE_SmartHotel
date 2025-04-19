@@ -8,12 +8,14 @@ import { Model } from 'mongoose';
 import { v4 as uuidv4 } from 'uuid';
 import { Payment, PaymentStatus, PaymentType } from '../schemas/payment.schema';
 import { CreateVnpayUrlDto } from '../dto/create-vnpay-url.dto';
+import { Booking } from '@/modules/bookings/schemas/booking.schema';
 
 @Injectable()
 export class VnpayService {
   constructor(
     private readonly configService: ConfigService,
     @InjectModel(Payment.name) private paymentModel: Model<Payment>,
+    @InjectModel(Booking.name) private bookingModel: Model<Booking>,
   ) {}
 
   private readonly vnpTmnCode =
@@ -167,6 +169,14 @@ export class VnpayService {
     if (transactionStatus === '00') {
       // Payment successful
       updateData.status = PaymentStatus.COMPLETED;
+      
+      // Gọi service để cập nhật booking status nếu thanh toán thành công
+      try {
+        await this.updateBookingAfterSuccessfulPayment(payment);
+      } catch (error) {
+        console.error('Error updating booking after payment:', error.message);
+        // Không throw lỗi, vẫn cần cập nhật payment status
+      }
     } else {
       // Payment failed
       updateData.status = PaymentStatus.FAILED;
@@ -187,6 +197,49 @@ export class VnpayService {
         vnp_response_code: transactionStatus,
       },
     };
+  }
+
+  // Thêm phương thức mới để cập nhật booking status sau khi thanh toán thành công
+  private async updateBookingAfterSuccessfulPayment(payment: any): Promise<void> {
+    const bookingId = payment.booking_id;
+    
+    try {
+      // Xác định loại thanh toán
+      if (payment.payment_type === PaymentType.DEPOSIT) {
+        // Nếu là thanh toán đặt cọc
+        await this.bookingModel.updateOne(
+          { booking_id: bookingId },
+          {
+            deposit_status: 'paid',
+            payment_status: 'partially_paid',
+            status: 'confirmed'
+          }
+        );
+      } else if (payment.payment_type === PaymentType.REMAINING) {
+        // Nếu là thanh toán phần còn lại
+        await this.bookingModel.updateOne(
+          { booking_id: bookingId },
+          {
+            payment_status: 'paid'
+          }
+        );
+      } else if (payment.payment_type === PaymentType.FULL_PAYMENT) {
+        // Nếu là thanh toán toàn bộ
+        await this.bookingModel.updateOne(
+          { booking_id: bookingId },
+          {
+            deposit_status: 'paid',
+            payment_status: 'paid',
+            status: 'confirmed'
+          }
+        );
+      }
+      
+      console.log(`Booking ${bookingId} updated after successful payment`);
+    } catch (error) {
+      console.error(`Error updating booking ${bookingId}:`, error.message);
+      throw error;
+    }
   }
 
   // IPN: Instant Payment Notification - used for server-to-server communication

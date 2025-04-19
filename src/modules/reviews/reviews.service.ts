@@ -10,6 +10,7 @@ import { CreateResponseDto, UpdateReviewDto } from './dto/update-review.dto';
 import { Review, SentimentLabel } from './schemas/review.schema';
 import { v4 as uuidv4 } from 'uuid';
 import { User } from '../users/schemas/user.schema';
+import { Booking } from '../bookings/schemas/booking.schema';
 import { Hotel } from '../hotels/schemas/hotel.schema';
 import { SentimentService } from '@/modules/sentiment/sentiment.service';
 import aqp from 'api-query-params';
@@ -21,6 +22,7 @@ export class ReviewsService {
     @InjectModel(Review.name) private reviewModel: Model<Review>,
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(Hotel.name) private hotelModel: Model<Hotel>,
+    @InjectModel(Booking.name) private bookingModel: Model<Booking>, // Import Booking model
     private sentimentService: SentimentService,
   ) {}
 
@@ -29,6 +31,19 @@ export class ReviewsService {
     const hotel = await this.hotelModel.findById(createReviewDto.hotel_id);
     if (!hotel) {
       throw new NotFoundException('Hotel not found');
+    }
+
+    // Kiểm tra xem người dùng đã từng đặt phòng tại khách sạn này chưa
+    // và đã qua thời gian checkout hay chưa
+    const canReview = await this.verifyUserCanReviewHotel(
+      userId,
+      createReviewDto.hotel_id
+    );
+    
+    if (!canReview) {
+      throw new BadRequestException(
+        'You can only review hotels after completing your stay'
+      );
     }
 
     // Generate unique review ID
@@ -274,5 +289,47 @@ export class ReviewsService {
         'ai_summary.last_updated': new Date(),
       });
     }
+  }
+
+  // Cập nhật phương thức để kiểm tra khả năng đánh giá với nhiều điều kiện hơn
+  private async verifyUserCanReviewHotel(userId: string, hotelId: string): Promise<boolean> {
+    // Lấy thời gian hiện tại
+    const now = new Date();
+    
+    // Kiểm tra xem người dùng đã đánh giá khách sạn này chưa
+    const existingReview = await this.reviewModel.findOne({
+      user_id: userId,
+      hotel_id: hotelId,
+    });
+    
+    if (existingReview) {
+      console.log(`User ${userId} has already reviewed hotel ${hotelId}`);
+      return false; // Người dùng đã đánh giá khách sạn này rồi
+    }
+    
+    // Tìm booking của user tại hotel này đã checkout
+    const completedBooking = await this.bookingModel.findOne({
+      user_id: userId,
+      hotel_id: hotelId,
+      check_out_date: { $lt: now }, // Đã qua thời gian checkout
+      status: 'completed', // Booking đã hoàn thành (không phải đã hủy)
+    });
+    
+    if (!completedBooking) {
+      console.log(`User ${userId} has no completed bookings at hotel ${hotelId}`);
+      return false; // Không tìm thấy booking hoàn thành nào
+    }
+    
+    // Kiểm tra thời hạn đánh giá (30 ngày sau checkout)
+    const checkoutDate = new Date(completedBooking.check_out_date);
+    const reviewDeadline = new Date(checkoutDate);
+    reviewDeadline.setDate(reviewDeadline.getDate() + 30);
+    
+    if (now > reviewDeadline) {
+      console.log(`Review period has expired for booking ${completedBooking._id}`);
+      return false; // Đã quá hạn 30 ngày để đánh giá
+    }
+    
+    return true;
   }
 }

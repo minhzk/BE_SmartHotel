@@ -23,6 +23,23 @@ export class HotelsController {
     return this.hotelsService.create(createHotelDto);
   }
 
+  @Get('search')
+  @Public()
+  @ResponseMessage('Search hotels successfully')
+  async searchHotels(
+    @Query() query: string,
+    @Query('current') current: string,
+    @Query('pageSize') pageSize: string,
+    @Query('name') name: string,
+    @Query('city') city: string,
+    @Query('rating') rating: string,
+    @Query('min_price') minPrice: string,
+    @Query('max_price') maxPrice: string,
+    @Query('capacity') capacity: string,
+  ) {
+    return this.hotelsService.findAll(query, +current, +pageSize);
+  }
+
   @Get()
   @Public()
   @ResponseMessage('Fetch hotels successfully')

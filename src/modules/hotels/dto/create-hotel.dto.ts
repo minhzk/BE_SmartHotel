@@ -56,6 +56,10 @@ export class CreateHotelDto {
 
   @IsString()
   @IsNotEmpty()
+  city: string;
+
+  @IsString()
+  @IsNotEmpty()
   description: string;
 
   @IsNumber()
@@ -90,4 +94,16 @@ export class CreateHotelDto {
   @Type(() => AISummaryDto)
   @IsOptional()
   ai_summary: AISummaryDto;
+
+  @IsNumber()
+  @IsNotEmpty()
+  min_price: number;
+
+  @IsNumber()
+  @IsNotEmpty()
+  max_price: number;
+
+  @IsNumber()
+  @IsNotEmpty()
+  max_capacity: number;
 }

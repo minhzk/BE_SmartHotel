@@ -42,6 +42,9 @@ export class Hotel {
   address: string;
 
   @Prop()
+  city: string;
+
+  @Prop()
   description: string;
 
   @Prop()
@@ -64,6 +67,20 @@ export class Hotel {
 
   @Prop({ type: Object })
   ai_summary: AISummary;
+
+  @Prop()
+  min_price: number;
+
+  @Prop()
+  max_price: number;
+
+  @Prop()
+  max_capacity: number;
 }
 
 export const HotelSchema = SchemaFactory.createForClass(Hotel);
+// Add index for better search performance
+HotelSchema.index({ name: 'text', city: 'text' });
+HotelSchema.index({ city: 1 });
+HotelSchema.index({ min_price: 1, max_price: 1 });
+HotelSchema.index({ max_capacity: 1 });

@@ -20,15 +20,7 @@ export class HotelsService {
   }
 
   async findAll(query: string, current: number, pageSize: number) {
-    console.log('========== HOTEL SERVICE ==========');
-    console.log('Received query:', query);
-    console.log('Current:', current);
-    console.log('PageSize:', pageSize);
-
     const { filter, sort } = aqp(query);
-    console.log('Parsed filter:', JSON.stringify(filter));
-    console.log('Parsed sort:', JSON.stringify(sort));
-
     if (filter.current) delete filter.current;
     if (filter.pageSize) delete filter.pageSize;
 
@@ -39,13 +31,8 @@ export class HotelsService {
 
     // Handle search by city - Đơn giản hóa
     if (filter.city) {
-      console.log('Processing city filter:', filter.city);
-
       // Bỏ qua logic mapping phức tạp, chỉ tìm kiếm không phân biệt HOA/thường
       filter.city = { $regex: filter.city, $options: 'i' };
-      console.log('Final city filter:', filter.city);
-    } else {
-      console.log('No city filter found in request');
     }
 
     // Handle ratings filter - Sửa lại để lấy khách sạn có rating >= giá trị đã chọn

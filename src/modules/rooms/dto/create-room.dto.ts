@@ -77,7 +77,7 @@ export class CreateRoomDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ImageDto)
-  @IsOptional()
+  @IsNotEmpty()
   images: ImageDto[];
 
   @IsArray()

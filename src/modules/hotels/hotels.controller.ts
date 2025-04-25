@@ -48,6 +48,8 @@ export class HotelsController {
     @Query('current') current: string,
     @Query('pageSize') pageSize: string,
   ) {
+    console.log('========== HOTELS CONTROLLER ==========');
+    console.log('Controller received request with query:', query);
     return this.hotelsService.findAll(query, +current, +pageSize);
   }
 

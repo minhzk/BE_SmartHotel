@@ -79,7 +79,7 @@ export class CreateHotelDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ImageDto)
-  @IsOptional()
+  @IsNotEmpty()
   images: ImageDto[];
 
   @IsBoolean()

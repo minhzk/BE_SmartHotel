@@ -20,7 +20,15 @@ export class HotelsService {
   }
 
   async findAll(query: string, current: number, pageSize: number) {
+    console.log('========== HOTEL SERVICE ==========');
+    console.log('Received query:', query);
+    console.log('Current:', current);
+    console.log('PageSize:', pageSize);
+
     const { filter, sort } = aqp(query);
+    console.log('Parsed filter:', JSON.stringify(filter));
+    console.log('Parsed sort:', JSON.stringify(sort));
+
     if (filter.current) delete filter.current;
     if (filter.pageSize) delete filter.pageSize;
 
@@ -29,19 +37,24 @@ export class HotelsService {
       filter.name = { $regex: filter.name, $options: 'i' }; // Case-insensitive search
     }
 
-    // Handle search by city
+    // Handle search by city - Đơn giản hóa
     if (filter.city) {
-      filter.city = { $regex: filter.city, $options: 'i' }; // Case-insensitive search
+      console.log('Processing city filter:', filter.city);
+
+      // Bỏ qua logic mapping phức tạp, chỉ tìm kiếm không phân biệt HOA/thường
+      filter.city = { $regex: filter.city, $options: 'i' };
+      console.log('Final city filter:', filter.city);
+    } else {
+      console.log('No city filter found in request');
     }
 
-    // Handle ratings filter - sửa lại cách lọc rating
+    // Handle ratings filter - Sửa lại để lấy khách sạn có rating >= giá trị đã chọn
     if (filter.rating) {
       const rating = Number(filter.rating);
       if (!isNaN(rating) && rating >= 1 && rating <= 5) {
-        // Lọc khách sạn theo số sao chính xác
-        filter.rating = Math.floor(rating); // Đảm bảo rating là số nguyên (1, 2, 3, 4, 5)
+        // Thay đổi logic: lấy khách sạn có rating lớn hơn hoặc bằng giá trị đã chọn
+        filter.rating = { $gte: Math.floor(rating) };
       } else {
-        // Nếu giá trị rating không hợp lệ, xóa khỏi filter
         delete filter.rating;
       }
     }
@@ -59,20 +72,29 @@ export class HotelsService {
       }
     }
 
-    // Khi người dùng tìm với max_price, họ muốn tìm khách sạn có giá tối đa <= giá họ nhập
+    // Khi người dùng tìm với max_price, họ muốn tìm khách sạn có giá khởi điểm <= giá họ nhập
     if (filter.max_price) {
       const maxPrice = Number(filter.max_price);
       if (!isNaN(maxPrice)) {
-        // Tìm khách sạn có max_price nhỏ hơn hoặc bằng giá người dùng nhập
-        filter.max_price = { $lte: maxPrice };
+        // Điều chỉnh logic: Tìm khách sạn có min_price <= maxPrice người dùng nhập
+        // Nghĩa là: tìm khách sạn có giá khởi điểm nằm trong ngân sách người dùng
+        filter.min_price = { ...filter.min_price, $lte: maxPrice };
+
+        // Xóa max_price khỏi filter vì đã chuyển điều kiện sang min_price
+        delete filter.max_price;
       } else {
         delete filter.max_price;
       }
     }
 
-    // Handle capacity filtering
+    // Handle capacity filtering - Chuyển đổi từ tham số capacity sang lọc theo trường max_capacity trong DB
     if (filter.capacity) {
-      filter.max_capacity = { $gte: Number(filter.capacity) };
+      const capacity = Number(filter.capacity);
+      if (!isNaN(capacity) && capacity > 0) {
+        // Tìm khách sạn có sức chứa tối đa (max_capacity) >= số người yêu cầu
+        filter.max_capacity = { $gte: capacity };
+      }
+      // Luôn xóa trường capacity khỏi filter vì trong schema chỉ có trường max_capacity
       delete filter.capacity;
     }
 

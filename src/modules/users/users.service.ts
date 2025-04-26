@@ -247,7 +247,7 @@ export class UsersService {
 
     // check expired code
     const isBeforeCheck = dayjs().isBefore(user.codeExpired);
-    if (isBeforeCheck) {
+    if (isBeforeCheck && user.codeId === data.code) {
       // valid => update password
       const newPassword = await hashPasswordHelper(data.password);
       await user.updateOne({ password: newPassword });

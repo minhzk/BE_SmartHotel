@@ -89,6 +89,22 @@ export class UsersService {
     return await this.userModel.findOne({ email });
   }
 
+  async findUserById(userId: string) {
+    if (!mongoose.isValidObjectId(userId)) {
+      throw new BadRequestException('Invalid user ID');
+    }
+
+    const user = await this.userModel
+      .findById(userId)
+      .select('-password -codeId -codeExpired');
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    return user;
+  }
+
   async update(updateUserDto: UpdateUserDto) {
     return await this.userModel.updateOne(
       { _id: updateUserDto._id },
@@ -223,7 +239,7 @@ export class UsersService {
     this.mailerService.sendMail({
       to: user.email, // list of receivers
       subject: 'Change your password at Minh Foods', // Subject line
-      template: 'register',
+      template: 'password-reset',
       context: {
         name: user?.name ?? user.email,
         activationCode: codeId,

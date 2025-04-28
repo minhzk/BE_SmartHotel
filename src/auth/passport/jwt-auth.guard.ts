@@ -6,12 +6,14 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
+import { JsonWebTokenError, TokenExpiredError } from 'jsonwebtoken';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
   constructor(private reflector: Reflector) {
     super();
   }
+
   canActivate(context: ExecutionContext) {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
@@ -26,13 +28,30 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   }
 
   handleRequest(err, user, info) {
-    // You can throw an exception based on either "info" or "err" arguments
+    // Xử lý cụ thể cho token hết hạn
+    if (info instanceof TokenExpiredError) {
+      throw new UnauthorizedException({
+        message: 'Access token has expired',
+        code: 'TOKEN_EXPIRED',
+      });
+    }
+
+    // Xử lý lỗi token không hợp lệ
+    if (info instanceof JsonWebTokenError) {
+      throw new UnauthorizedException({
+        message: 'Invalid access token',
+        code: 'TOKEN_INVALID',
+      });
+    }
+
+    // Xử lý các lỗi khác
     if (err || !user) {
       throw (
         err ||
         new UnauthorizedException('Access token is invalid or not provided')
       );
     }
+
     return user;
   }
 }

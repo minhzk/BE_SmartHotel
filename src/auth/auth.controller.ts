@@ -1,25 +1,39 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+  Request,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './passport/local-auth.guard';
 import { Public, ResponseMessage } from '@/decorator/customize';
-import { ChangePasswordAuthDto, CodeAuthDto, CreateAuthDto } from './dto/create-auth.dto';
+import {
+  ChangePasswordAuthDto,
+  CodeAuthDto,
+  CreateAuthDto,
+} from './dto/create-auth.dto';
 import { MailerService } from '@nestjs-modules/mailer';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
-    private readonly mailerService: MailerService
+    private readonly mailerService: MailerService,
   ) {}
 
-  @Post("login")
+  @Post('login')
   @Public()
   @UseGuards(LocalAuthGuard)
   @ResponseMessage('Fetch login')
   handleLogin(@Request() req) {
-    return this.authService.login(req.user)
+    return this.authService.login(req.user);
   }
-  
+
   // @UseGuards(JwtAuthGuard)
   @Post('register')
   @Public()
@@ -35,13 +49,13 @@ export class AuthController {
 
   @Post('retry-active')
   @Public()
-  retryActive(@Body("email") email: string) {
+  retryActive(@Body('email') email: string) {
     return this.authService.retryActive(email);
   }
 
   @Post('retry-password')
   @Public()
-  retryPassword(@Body("email") email: string) {
+  retryPassword(@Body('email') email: string) {
     return this.authService.retryPassword(email);
   }
 
@@ -51,20 +65,26 @@ export class AuthController {
     return this.authService.changePassword(data);
   }
 
+  @Post('refresh')
+  @Public()
+  @ResponseMessage('Refresh access token')
+  async refreshToken(@Body('refresh_token') refreshToken: string) {
+    return this.authService.refreshToken(refreshToken);
+  }
+
   @Get('mail')
   @Public()
   testMail() {
-    this.mailerService
-      .sendMail({
-        to: 'minhdev158@gmail.com', // list of receivers
-        subject: 'Testing Nest MailerModule ✔', // Subject line
-        text: 'welcome', // plaintext body
-        template: "register",
-        context: {
-          name: "Minh",
-          activationCode: 12312313123
-        }
-      })
-    return "ok"
+    this.mailerService.sendMail({
+      to: 'minhdev158@gmail.com', // list of receivers
+      subject: 'Testing Nest MailerModule ✔', // Subject line
+      text: 'welcome', // plaintext body
+      template: 'register',
+      context: {
+        name: 'Minh',
+        activationCode: 12312313123,
+      },
+    });
+    return 'ok';
   }
 }

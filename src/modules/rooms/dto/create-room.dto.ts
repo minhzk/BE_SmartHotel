@@ -43,6 +43,10 @@ class ImageDto {
   @IsString()
   @IsOptional()
   description: string;
+
+  @IsString()
+  @IsOptional()
+  cloudinary_id: string;
 }
 
 class BedConfigurationDto {
@@ -54,6 +58,10 @@ class BedConfigurationDto {
 }
 
 export class CreateRoomDto {
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
   @IsString()
   @IsNotEmpty()
   hotel_id: string;
@@ -102,6 +110,14 @@ export class CreateRoomDto {
   @IsNumber()
   @IsOptional()
   max_children: number = 0;
+
+  @IsNumber()
+  @IsOptional()
+  number_of_rooms: number = 1;
+
+  @IsBoolean()
+  @IsOptional()
+  is_bookable: boolean = true;
 
   @IsBoolean()
   @IsOptional()

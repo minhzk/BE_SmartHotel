@@ -6,12 +6,15 @@ import { CreateHotelDto } from './dto/create-hotel.dto';
 import { UpdateHotelDto } from './dto/update-hotel.dto';
 import aqp from 'api-query-params';
 import mongoose from 'mongoose';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class HotelsService {
   constructor(
     @InjectModel(Hotel.name)
     private hotelModel: Model<Hotel>,
+    private readonly configService: ConfigService,
   ) {}
 
   async create(createHotelDto: CreateHotelDto) {
@@ -127,6 +130,8 @@ export class HotelsService {
       throw new BadRequestException('Invalid hotel ID');
     }
 
+    console.log('Received images:', updateHotelDto.images); // Log để kiểm tra
+
     const hotel = await this.hotelModel.findByIdAndUpdate(id, updateHotelDto, {
       new: true,
     });
@@ -148,5 +153,56 @@ export class HotelsService {
     }
 
     return { deleted: true };
+  }
+
+  async updateHotelImages(
+    hotelId: string,
+    images: Array<{ url: string; cloudinary_id: string; description: string }>,
+  ) {
+    if (!mongoose.isValidObjectId(hotelId)) {
+      throw new BadRequestException('Invalid hotel ID');
+    }
+
+    // Cập nhật images trong hotel document
+    const hotel = await this.hotelModel.findByIdAndUpdate(
+      hotelId,
+      { images: images },
+      { new: true },
+    );
+
+    if (!hotel) {
+      throw new BadRequestException(`Hotel with ID ${hotelId} not found`);
+    }
+
+    return hotel;
+  }
+
+  // Khi xóa ảnh cũ khi cập nhật hotel
+  async removeUnusedImages(
+    oldImages: Array<{ cloudinary_id: string }>,
+    newImages: Array<{ cloudinary_id: string }>,
+  ) {
+    const cloudinaryService = new CloudinaryService(this.configService);
+
+    // Tìm các ảnh có trong oldImages nhưng không có trong newImages
+    const imagesToDelete = oldImages.filter(
+      (oldImg) =>
+        !newImages.some(
+          (newImg) => newImg.cloudinary_id === oldImg.cloudinary_id,
+        ),
+    );
+
+    // Xóa các ảnh không sử dụng từ Cloudinary
+    for (const image of imagesToDelete) {
+      if (image.cloudinary_id) {
+        try {
+          await cloudinaryService.deleteImage(image.cloudinary_id);
+        } catch (error) {
+          console.error(
+            `Failed to delete image from Cloudinary: ${error.message}`,
+          );
+        }
+      }
+    }
   }
 }

@@ -25,6 +25,10 @@ class ImageDto {
   @IsString()
   @IsOptional()
   description: string;
+
+  @IsString()
+  @IsOptional()
+  cloudinary_id: string; // Add cloudinary_id to ImageDto
 }
 
 class AISummaryDto {

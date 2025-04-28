@@ -58,10 +58,36 @@ export class HotelsController {
     return this.hotelsService.findOne(id);
   }
 
-  @Patch(':id')
+  @Patch()
   @ResponseMessage('Update hotel successfully')
-  update(@Param('id') id: string, @Body() updateHotelDto: UpdateHotelDto) {
-    return this.hotelsService.update(id, updateHotelDto);
+  async update(@Body() updateHotelDto: UpdateHotelDto) {
+    // Lấy images cũ trước khi cập nhật
+    const existingHotel = await this.hotelsService.findOne(updateHotelDto._id);
+
+    // Ensure images have cloudinary_id or use empty array
+    const oldImages = (existingHotel.images || []).map((img) => ({
+      cloudinary_id: img.cloudinary_id || '',
+      url: img.url,
+      description: img.description,
+    }));
+
+    // Cập nhật hotel với thông tin mới
+    const updatedHotel = await this.hotelsService.update(
+      updateHotelDto._id,
+      updateHotelDto,
+    );
+
+    // Ensure images have cloudinary_id for comparison
+    const newImages = (updateHotelDto.images || []).map((img) => ({
+      cloudinary_id: img.cloudinary_id || '',
+      url: img.url,
+      description: img.description,
+    }));
+
+    // Xóa ảnh không sử dụng
+    await this.hotelsService.removeUnusedImages(oldImages, newImages);
+
+    return updatedHotel;
   }
 
   @Delete(':id')

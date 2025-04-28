@@ -17,6 +17,9 @@ class Image {
 
   @Prop()
   description: string;
+
+  @Prop()
+  cloudinary_id: string;
 }
 
 class AISummary {

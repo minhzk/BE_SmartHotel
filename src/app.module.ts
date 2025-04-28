@@ -20,6 +20,7 @@ import { NotificationsModule } from '@/modules/notifications/notifications.modul
 import { SentimentModule } from '@/modules/sentiment/sentiment.module';
 import { ChatbotModule } from '@/modules/chatbot/chatbot.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
     SentimentModule,
     ChatbotModule,
     EventEmitterModule.forRoot(),
+    CloudinaryModule,
   ],
   controllers: [AppController],
   providers: [

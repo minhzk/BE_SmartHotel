@@ -54,7 +54,7 @@ export class AuthService {
     }
 
     // Get user from database to ensure they still exist and are active
-    const user = await this.usersService.findOne(payload.sub);
+    const user = await this.usersService.findUserById(payload.sub);
 
     if (!user) {
       throw new UnauthorizedException('User no longer exists');

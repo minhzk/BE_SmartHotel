@@ -17,6 +17,7 @@ import {
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { CancelBookingDto } from './dto/cancel-booking.dto';
+import { FilterBookingDto } from './dto/filter-booking.dto';
 import { RoomAvailabilityService } from '../room-availability/room-availability.service';
 import { v4 as uuidv4 } from 'uuid';
 import dayjs from 'dayjs';
@@ -199,36 +200,97 @@ export class BookingsService {
     query: string,
     current: number,
     pageSize: number,
+    filters?: FilterBookingDto,
   ) {
-    const { filter, sort, projection, population } = aqp(query);
-    if (filter.current) delete filter.current;
-    if (filter.pageSize) delete filter.pageSize;
+    const { filter, sort, population } = aqp(query);
 
-    // Add user_id filter for regular users, not needed for ADMIN
+    // Xóa các query params đặc biệt từ filter
+    delete filter.current;
+    delete filter.pageSize;
+    delete filter.dateRange;
+    delete filter.search;
+
+    // Xây dựng bộ lọc từ các tham số
+    const customFilter: any = { ...filter };
+
+    // Kiểm tra quyền, nếu không phải admin thì chỉ xem booking của mình
     const user = await this.userModel.findById(userId);
-    if (user && user.role !== 'ADMIN') {
-      filter.user_id = userId;
+    if (user && user.role !== 'admin') {
+      customFilter.user_id = new mongoose.Types.ObjectId(userId);
     }
 
-    if (!current) current = 1;
-    if (!pageSize) pageSize = 10;
+    // Xử lý lọc theo khoảng thời gian check-in
+    if (filters?.dateRange) {
+      if (filters.dateRange.includes(',') || filters.dateRange.includes('-')) {
+        let [startDate, endDate] = filters.dateRange.includes(',')
+          ? filters.dateRange.split(',')
+          : filters.dateRange.split('-');
 
-    const totalItems = await this.bookingModel.countDocuments(filter);
-    const totalPages = Math.ceil(totalItems / pageSize);
-    const skip = (current - 1) * pageSize;
+        startDate = startDate.trim();
+        endDate = endDate ? endDate.trim() : startDate;
 
-    const results = await this.bookingModel
-      .find(filter)
-      .limit(pageSize)
-      .skip(skip)
-      .sort(sort as any)
-      .populate(population)
-      .select(projection as any);
+        customFilter.check_in_date = {
+          $gte: new Date(startDate),
+          $lte: new Date(endDate),
+        };
+      }
+    }
+
+    // Thêm các điều kiện lọc
+    if (filters?.status) {
+      customFilter.status = filters.status;
+    }
+
+    if (filters?.payment_status) {
+      customFilter.payment_status = filters.payment_status;
+    }
+
+    if (filters?.deposit_status) {
+      customFilter.deposit_status = filters.deposit_status;
+    }
+
+    // Xử lý tìm kiếm theo text
+    if (filters?.search) {
+      const searchRegex = new RegExp(filters.search, 'i');
+      customFilter.$or = [
+        { booking_id: searchRegex },
+        { guest_name: searchRegex },
+        { guest_email: searchRegex },
+        { guest_phone: searchRegex },
+      ];
+    }
+
+    // Log để debug
+    console.log('Final filter:', JSON.stringify(customFilter, null, 2));
+
+    // Đặt giá trị mặc định cho phân trang
+    const defaultPageSize = 10;
+    const defaultCurrent = 1;
+
+    const skip =
+      (current > 0 ? current - 1 : defaultCurrent - 1) *
+      (pageSize > 0 ? pageSize : defaultPageSize);
+    const limit = pageSize > 0 ? pageSize : defaultPageSize;
+
+    // Thực hiện truy vấn
+    const [results, totalItems] = await Promise.all([
+      this.bookingModel
+        .find(customFilter)
+        .skip(skip)
+        .limit(limit)
+        .sort(sort as any)
+        .populate(population)
+        .exec(),
+      this.bookingModel.countDocuments(customFilter),
+    ]);
+
+    // Tính toán thông tin phân trang
+    const totalPages = Math.ceil(totalItems / limit);
 
     return {
       meta: {
-        current,
-        pageSize,
+        current: current || defaultCurrent,
+        pageSize: limit,
         pages: totalPages,
         total: totalItems,
       },

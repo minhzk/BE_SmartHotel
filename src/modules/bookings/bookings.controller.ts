@@ -14,6 +14,7 @@ import { BookingsService } from './bookings.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { CancelBookingDto } from './dto/cancel-booking.dto';
+import { FilterBookingDto } from './dto/filter-booking.dto';
 import { JwtAuthGuard } from '@/auth/passport/jwt-auth.guard';
 import { Public, ResponseMessage } from '@/decorator/customize';
 
@@ -34,12 +35,26 @@ export class BookingsController {
     @Query() query: string,
     @Query('current') current: string,
     @Query('pageSize') pageSize: string,
+    @Query('dateRange') dateRange: string,
+    @Query('status') status: string,
+    @Query('payment_status') paymentStatus: string,
+    @Query('deposit_status') depositStatus: string,
+    @Query('search') search: string,
   ) {
+    const filters: FilterBookingDto = {
+      dateRange,
+      status,
+      payment_status: paymentStatus,
+      deposit_status: depositStatus,
+      search,
+    };
+
     return this.bookingsService.findAll(
       req.user._id,
       query,
       +current,
       +pageSize,
+      filters,
     );
   }
 

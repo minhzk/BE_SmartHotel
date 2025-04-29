@@ -12,6 +12,7 @@ import { Payment, PaymentStatus, PaymentType } from './schemas/payment.schema';
 import { VnpayService } from './vnpay/vnpay.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { BookingsService } from '../bookings/bookings.service';
+import { User } from '../users/schemas/user.schema';
 import aqp from 'api-query-params';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -20,6 +21,8 @@ export class PaymentsService {
   constructor(
     @InjectModel(Payment.name)
     private paymentModel: Model<Payment>,
+    @InjectModel(User.name)
+    private userModel: Model<User>,
     private readonly vnpayService: VnpayService,
     @Inject(forwardRef(() => BookingsService))
     private readonly bookingsService: BookingsService,
@@ -114,36 +117,126 @@ export class PaymentsService {
     query: string,
     current: number,
     pageSize: number,
+    filters?: {
+      paymentDate?: string;
+      status?: string;
+      paymentMethod?: string;
+      paymentType?: string;
+    },
   ) {
-    const { filter, sort, projection, population } = aqp(query);
-    if (filter.current) delete filter.current;
-    if (filter.pageSize) delete filter.pageSize;
+    const { filter, sort, population } = aqp(query);
 
-    // Non-admin users can only see their own payments
-    const isAdmin = await this.checkIfUserIsAdmin(userId);
-    if (!isAdmin) {
-      filter.user_id = userId;
+    // Xóa các tham số current và pageSize từ filter nếu có
+    delete filter.current;
+    delete filter.pageSize;
+
+    // Cũng xóa các tham số lọc đặc biệt khỏi filter vì sẽ xử lý riêng
+    delete filter.paymentDate;
+    delete filter.paymentType;
+    delete filter.paymentMethod;
+
+    // Xây dựng bộ lọc từ các tham số
+    const customFilter: any = { ...filter };
+
+    // Thêm filter theo userId nếu không phải admin
+    const user = await this.userModel.findById(userId);
+    if (user && user.role !== 'admin') {
+      customFilter.user_id = new mongoose.Types.ObjectId(userId);
     }
 
-    if (!current) current = 1;
-    if (!pageSize) pageSize = 10;
+    // Xử lý lọc theo payment_date - SỬA TỪ paymentDate THÀNH payment_date
+    if (filters?.paymentDate) {
+      // Nếu giá trị chứa dấu phẩy hoặc dấu gạch ngang, coi như là khoảng thời gian
+      if (
+        filters.paymentDate.includes(',') ||
+        filters.paymentDate.includes('-')
+      ) {
+        let [startDate, endDate] = filters.paymentDate.includes(',')
+          ? filters.paymentDate.split(',')
+          : filters.paymentDate.split('-');
 
-    const totalItems = await this.paymentModel.countDocuments(filter);
-    const totalPages = Math.ceil(totalItems / pageSize);
-    const skip = (current - 1) * pageSize;
+        // Xử lý startDate và endDate
+        startDate = startDate.trim();
+        endDate = endDate ? endDate.trim() : startDate;
 
-    const results = await this.paymentModel
-      .find(filter)
-      .limit(pageSize)
-      .skip(skip)
-      .sort(sort as any)
-      .populate(population)
-      .select(projection as any);
+        customFilter.payment_date = {
+          // SỬA TỪ paymentDate THÀNH payment_date
+          $gte: new Date(startDate),
+          $lte: new Date(endDate + 'T23:59:59.999Z'),
+        };
+      } else {
+        // Nếu chỉ có năm và tháng (YYYY-MM)
+        if (/^\d{4}-\d{2}$/.test(filters.paymentDate)) {
+          const year = parseInt(filters.paymentDate.substring(0, 4));
+          const month = parseInt(filters.paymentDate.substring(5, 7)) - 1; // Tháng trong JS là 0-11
+
+          const startOfMonth = new Date(year, month, 1);
+          const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999);
+
+          customFilter.payment_date = {
+            // SỬA TỪ paymentDate THÀNH payment_date
+            $gte: startOfMonth,
+            $lte: endOfMonth,
+          };
+        }
+        // Nếu là ngày đầy đủ (YYYY-MM-DD)
+        else if (/^\d{4}-\d{2}-\d{2}$/.test(filters.paymentDate)) {
+          const startOfDay = new Date(filters.paymentDate);
+          const endOfDay = new Date(filters.paymentDate);
+          endOfDay.setHours(23, 59, 59, 999);
+
+          customFilter.payment_date = {
+            // SỬA TỪ paymentDate THÀNH payment_date
+            $gte: startOfDay,
+            $lte: endOfDay,
+          };
+        }
+      }
+    }
+
+    // Thêm điều kiện lọc theo trạng thái, method và type
+    if (filters?.status) {
+      customFilter.status = filters.status;
+    }
+    if (filters?.paymentMethod) {
+      customFilter.payment_method = filters.paymentMethod;
+    }
+    if (filters?.paymentType) {
+      customFilter.payment_type = filters.paymentType;
+    }
+
+    // Log để debug
+    console.log('Final filter:', JSON.stringify(customFilter, null, 2));
+
+    // Đặt giá trị mặc định cho phân trang
+    const defaultPageSize = 10;
+    const defaultCurrent = 1;
+
+    const skip =
+      (current > 0 ? current - 1 : defaultCurrent - 1) *
+      (pageSize > 0 ? pageSize : defaultPageSize);
+
+    const limit = pageSize > 0 ? pageSize : defaultPageSize;
+
+    // Thực hiện truy vấn
+    const [results, totalItems] = await Promise.all([
+      this.paymentModel
+        .find(customFilter)
+        .skip(skip)
+        .limit(limit)
+        .sort(sort as any)
+        .populate(population)
+        .exec(),
+      this.paymentModel.countDocuments(customFilter),
+    ]);
+
+    // Tính toán thông tin phân trang
+    const totalPages = Math.ceil(totalItems / limit);
 
     return {
       meta: {
-        current,
-        pageSize,
+        current: current || defaultCurrent,
+        pageSize: limit,
         pages: totalPages,
         total: totalItems,
       },
@@ -406,9 +499,12 @@ export class PaymentsService {
       `Refund not supported for payment method: ${originalPayment.payment_method}`,
     );
   }
-  
+
   getFrontendResultUrl(): string {
     // Return the frontend URL where users should be redirected after payment
-    return process.env.FRONTEND_PAYMENT_RESULT_URL || 'http://localhost:3000/payment-result';
+    return (
+      process.env.FRONTEND_PAYMENT_RESULT_URL ||
+      'http://localhost:3000/payment-result'
+    );
   }
 }

@@ -60,12 +60,24 @@ export class PaymentsController {
     @Query() query: string,
     @Query('current') current: string,
     @Query('pageSize') pageSize: string,
+    @Query('paymentDate') paymentDate: string, // Thay thế startDate và endDate bằng payment_date
+    @Query('status') status: string,
+    @Query('paymentMethod') paymentMethod: string,
+    @Query('paymentType') paymentType: string,
   ) {
+    const filters = {
+      paymentDate,
+      status,
+      paymentMethod,
+      paymentType,
+    };
+
     return this.paymentsService.findAll(
       req.user._id,
       query,
       +current,
       +pageSize,
+      filters,
     );
   }
 

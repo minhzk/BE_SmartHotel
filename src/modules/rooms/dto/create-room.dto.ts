@@ -26,13 +26,15 @@ export enum RoomType {
 }
 
 export enum BedType {
-  SINGLE = 'Single',
-  TWIN = 'Twin',
-  DOUBLE = 'Double',
-  QUEEN = 'Queen',
-  KING = 'King',
-  BUNK = 'Bunk',
-  SOFA_BED = 'Sofa bed',
+  SINGLE = 'single',
+  DOUBLE = 'double',
+  QUEEN = 'queen',
+  KING = 'king',
+  TWIN = 'twin',
+  SOFA = 'sofa_bed',
+  BUNK = 'bunk_bed',
+  MURPHY = 'murphy_bed',
+  FUTON = 'futon',
 }
 
 class ImageDto {

@@ -17,8 +17,8 @@ class Image {
 }
 
 class BedConfiguration {
-  @Prop()
-  type: string;
+  @Prop({ type: String, enum: BedType, required: true })
+  type: BedType;
 
   @Prop()
   count: number;

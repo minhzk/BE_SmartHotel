@@ -39,6 +39,7 @@ export class AuthService {
         _id: user._id,
         name: user?.name,
         phone: user?.phone,
+        role: user?.role,
       },
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,

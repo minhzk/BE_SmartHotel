@@ -21,6 +21,7 @@ import { SentimentModule } from '@/modules/sentiment/sentiment.module';
 import { ChatbotModule } from '@/modules/chatbot/chatbot.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
+import { FavoritesModule } from './modules/favorites/favorites.module';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
     ChatbotModule,
     EventEmitterModule.forRoot(),
     CloudinaryModule,
+    FavoritesModule,
   ],
   controllers: [AppController],
   providers: [

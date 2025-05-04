@@ -27,11 +27,21 @@ export class UsersController {
 
   @Get()
   async findAll(
-    @Query() query: string,
+    @Query() query: any,
     @Query('current') current: string,
     @Query('pageSize') pageSize: string,
+    @Query('search') search: string,
+    @Query('role') role: string,
+    @Query('isActive') isActive: string,
   ) {
-    return this.usersService.findAll(query, +current, +pageSize);
+    return this.usersService.findAll(
+      query,
+      +current,
+      +pageSize,
+      search, 
+      role,
+      isActive
+    );
   }
 
   @Get('me')

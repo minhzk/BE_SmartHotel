@@ -52,32 +52,66 @@ export class UsersService {
     };
   }
 
-  async findAll(query: string, current: number, pageSize: number) {
+  async findAll(
+    query: any, 
+    current: number, 
+    pageSize: number, 
+    search?: string,
+    role?: string,
+    isActive?: string
+  ) {
     const { filter, sort } = aqp(query);
+    
+    // Clean up filter object
     if (filter.current) delete filter.current;
     if (filter.pageSize) delete filter.pageSize;
-
+    if (filter.search) delete filter.search;
+    
+    // Set defaults for pagination
     if (!current) current = 1;
     if (!pageSize) pageSize = 10;
-
-    const totalItems = (await this.userModel.find(filter)).length;
+    
+    // Build the filter object
+    const finalFilter: any = { ...filter };
+    
+    // Add search functionality across multiple fields
+    if (search) {
+      finalFilter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { phone: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    // Add role filter
+    if (role) {
+      finalFilter.role = role;
+    }
+    
+    // Add isActive filter (convert string to boolean)
+    if (isActive !== undefined) {
+      finalFilter.isActive = isActive === 'true';
+    }
+    
+    const totalItems = await this.userModel.countDocuments(finalFilter);
     const totalPages = Math.ceil(totalItems / pageSize);
     const skip = (current - 1) * pageSize;
-
+    
     const results = await this.userModel
-      .find(filter)
+      .find(finalFilter)
       .limit(pageSize)
       .skip(skip)
       .select('-password')
       .sort(sort as any);
+      
     return {
       meta: {
-        current: current, //trang hiện tại
-        pageSize: pageSize, //số lượng bản ghi đã lấy
-        pages: totalPages, //tổng số trang với điều kiện query
-        total: totalItems, // tổng số phần tử (số bản ghi)
+        current: current, 
+        pageSize: pageSize, 
+        pages: totalPages,
+        total: totalItems,
       },
-      results, //kết quả query
+      results,
     };
   }
 

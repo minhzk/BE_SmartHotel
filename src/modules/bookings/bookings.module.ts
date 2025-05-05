@@ -10,6 +10,7 @@ import { Hotel, HotelSchema } from '../hotels/schemas/hotel.schema';
 import { PaymentsModule } from '../payments/payments.module';
 import { Payment, PaymentSchema } from '../payments/schemas/payment.schema';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { BookingsScheduleService } from './bookings-schedule.service'; // Import service mới
 
 @Module({
   imports: [
@@ -25,7 +26,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     NotificationsModule,
   ],
   controllers: [BookingsController],
-  providers: [BookingsService],
+  providers: [BookingsService, BookingsScheduleService], // Thêm service mới vào providers
   exports: [BookingsService],
 })
 export class BookingsModule {}

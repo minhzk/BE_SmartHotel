@@ -17,15 +17,30 @@ import { CancelBookingDto } from './dto/cancel-booking.dto';
 import { FilterBookingDto } from './dto/filter-booking.dto';
 import { JwtAuthGuard } from '@/auth/passport/jwt-auth.guard';
 import { Public, ResponseMessage } from '@/decorator/customize';
+import { BookingsScheduleService } from './bookings-schedule.service';
+import { Roles } from '@/decorator/roles.decorator';
+import { RolesGuard } from '@/guards/roles.guard';
 
 @Controller('bookings')
 export class BookingsController {
-  constructor(private readonly bookingsService: BookingsService) {}
+  constructor(
+    private readonly bookingsService: BookingsService,
+    private readonly bookingsScheduleService: BookingsScheduleService,
+  ) {}
 
   @Post()
   @ResponseMessage('Create booking successfully')
   create(@Request() req, @Body() createBookingDto: CreateBookingDto) {
     return this.bookingsService.create(req.user._id, createBookingDto);
+  }
+
+  // Di chuyển endpoint check-completed lên trước các endpoint có param
+  @Post('check-completed')
+  @Public() // Tạm thời đặt Public để test
+  @ResponseMessage('Check and update completed bookings')
+  async checkCompletedBookings() {
+    await this.bookingsScheduleService.checkAndUpdateCompletedBookings();
+    return { success: true };
   }
 
   @Get()

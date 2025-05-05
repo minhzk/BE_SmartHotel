@@ -22,6 +22,7 @@ import { ChatbotModule } from '@/modules/chatbot/chatbot.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
 import { FavoritesModule } from './modules/favorites/favorites.module';
+import { ScheduleModule } from '@nestjs/schedule'; // Import ScheduleModule
 
 @Module({
   imports: [
@@ -75,6 +76,7 @@ import { FavoritesModule } from './modules/favorites/favorites.module';
     EventEmitterModule.forRoot(),
     CloudinaryModule,
     FavoritesModule,
+    ScheduleModule.forRoot(), // Kích hoạt schedule module
   ],
   controllers: [AppController],
   providers: [

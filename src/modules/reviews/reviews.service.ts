@@ -118,15 +118,12 @@ export class ReviewsService {
     current: number,
     pageSize: number,
   ) {
-    console.log('Finding reviews for hotel:', hotelId);
-
     if (!mongoose.isValidObjectId(hotelId)) {
       throw new BadRequestException('Invalid hotel ID');
     }
 
     // Tạo filter với hotel_id là ObjectId
     const filter = { hotel_id: new mongoose.Types.ObjectId(hotelId) };
-    console.log('Filter:', JSON.stringify(filter));
 
     // Lấy các tham số phụ từ query nếu có
     const parsedQuery = aqp(query);
@@ -137,8 +134,6 @@ export class ReviewsService {
     if (!pageSize) pageSize = 10;
 
     const totalItems = await this.reviewModel.countDocuments(filter);
-    console.log('Total reviews found:', totalItems);
-
     const totalPages = Math.ceil(totalItems / pageSize);
     const skip = (current - 1) * pageSize;
 
@@ -148,8 +143,6 @@ export class ReviewsService {
       .skip(skip)
       .sort(sort as any)
       .populate(population);
-
-    console.log('Reviews after query:', results.length);
 
     return {
       meta: {

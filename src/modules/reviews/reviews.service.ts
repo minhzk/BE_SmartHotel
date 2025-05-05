@@ -37,12 +37,12 @@ export class ReviewsService {
     // và đã qua thời gian checkout hay chưa
     const canReview = await this.verifyUserCanReviewHotel(
       userId,
-      createReviewDto.hotel_id
+      createReviewDto.hotel_id,
     );
-    
+
     if (!canReview) {
       throw new BadRequestException(
-        'You can only review hotels after completing your stay'
+        'You can only review hotels after completing your stay',
       );
     }
 
@@ -118,15 +118,48 @@ export class ReviewsService {
     current: number,
     pageSize: number,
   ) {
+    console.log('Finding reviews for hotel:', hotelId);
+
     if (!mongoose.isValidObjectId(hotelId)) {
       throw new BadRequestException('Invalid hotel ID');
     }
 
-    // Add hotel_id to query filter
-    const parsedQuery = aqp(query);
-    parsedQuery.filter.hotel_id = hotelId;
+    // Tạo filter với hotel_id là ObjectId
+    const filter = { hotel_id: new mongoose.Types.ObjectId(hotelId) };
+    console.log('Filter:', JSON.stringify(filter));
 
-    return this.findAll(JSON.stringify(parsedQuery), current, pageSize);
+    // Lấy các tham số phụ từ query nếu có
+    const parsedQuery = aqp(query);
+    const sort = parsedQuery.sort || { createdAt: -1 };
+    const population = parsedQuery.population || ['user_id'];
+
+    if (!current) current = 1;
+    if (!pageSize) pageSize = 10;
+
+    const totalItems = await this.reviewModel.countDocuments(filter);
+    console.log('Total reviews found:', totalItems);
+
+    const totalPages = Math.ceil(totalItems / pageSize);
+    const skip = (current - 1) * pageSize;
+
+    const results = await this.reviewModel
+      .find(filter)
+      .limit(pageSize)
+      .skip(skip)
+      .sort(sort as any)
+      .populate(population);
+
+    console.log('Reviews after query:', results.length);
+
+    return {
+      meta: {
+        current,
+        pageSize,
+        pages: totalPages,
+        total: totalItems,
+      },
+      results,
+    };
   }
 
   async findByUser(
@@ -135,11 +168,36 @@ export class ReviewsService {
     current: number,
     pageSize: number,
   ) {
-    // Add user_id to query filter
-    const parsedQuery = aqp(query);
-    parsedQuery.filter.user_id = userId;
+    // Thay vào đó, xây dựng filter thủ công
+    const filter = { user_id: new mongoose.Types.ObjectId(userId) };
 
-    return this.findAll(JSON.stringify(parsedQuery), current, pageSize);
+    // Lấy các tham số phụ từ query nếu có
+    const parsedQuery = aqp(query);
+    const sort = parsedQuery.sort || { createdAt: -1 };
+
+    if (!current) current = 1;
+    if (!pageSize) pageSize = 10;
+
+    const totalItems = await this.reviewModel.countDocuments(filter);
+    const totalPages = Math.ceil(totalItems / pageSize);
+    const skip = (current - 1) * pageSize;
+
+    const results = await this.reviewModel
+      .find(filter)
+      .limit(pageSize)
+      .skip(skip)
+      .sort(sort as any)
+      .populate(['user_id', 'hotel_id']);
+
+    return {
+      meta: {
+        current,
+        pageSize,
+        pages: totalPages,
+        total: totalItems,
+      },
+      results,
+    };
   }
 
   async findOne(id: string) {
@@ -292,21 +350,24 @@ export class ReviewsService {
   }
 
   // Cập nhật phương thức để kiểm tra khả năng đánh giá với nhiều điều kiện hơn
-  private async verifyUserCanReviewHotel(userId: string, hotelId: string): Promise<boolean> {
+  private async verifyUserCanReviewHotel(
+    userId: string,
+    hotelId: string,
+  ): Promise<boolean> {
     // Lấy thời gian hiện tại
     const now = new Date();
-    
+
     // Kiểm tra xem người dùng đã đánh giá khách sạn này chưa
     const existingReview = await this.reviewModel.findOne({
       user_id: userId,
       hotel_id: hotelId,
     });
-    
+
     if (existingReview) {
       console.log(`User ${userId} has already reviewed hotel ${hotelId}`);
       return false; // Người dùng đã đánh giá khách sạn này rồi
     }
-    
+
     // Tìm booking của user tại hotel này đã checkout
     const completedBooking = await this.bookingModel.findOne({
       user_id: userId,
@@ -314,22 +375,26 @@ export class ReviewsService {
       check_out_date: { $lt: now }, // Đã qua thời gian checkout
       status: 'completed', // Booking đã hoàn thành (không phải đã hủy)
     });
-    
+
     if (!completedBooking) {
-      console.log(`User ${userId} has no completed bookings at hotel ${hotelId}`);
+      console.log(
+        `User ${userId} has no completed bookings at hotel ${hotelId}`,
+      );
       return false; // Không tìm thấy booking hoàn thành nào
     }
-    
+
     // Kiểm tra thời hạn đánh giá (30 ngày sau checkout)
     const checkoutDate = new Date(completedBooking.check_out_date);
     const reviewDeadline = new Date(checkoutDate);
     reviewDeadline.setDate(reviewDeadline.getDate() + 30);
-    
+
     if (now > reviewDeadline) {
-      console.log(`Review period has expired for booking ${completedBooking._id}`);
+      console.log(
+        `Review period has expired for booking ${completedBooking._id}`,
+      );
       return false; // Đã quá hạn 30 ngày để đánh giá
     }
-    
+
     return true;
   }
 }

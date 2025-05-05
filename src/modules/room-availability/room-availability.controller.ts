@@ -107,20 +107,28 @@ export class RoomAvailabilityController {
     );
   }
 
-  @Get('check')
+  @Get('check-room-dates')
   @Public()
-  @ResponseMessage('Check room availability successfully')
-  async checkAvailability(
+  @ResponseMessage('Check room availability for date range')
+  async checkRoomAvailabilityForDates(
     @Query('roomId') roomId: string,
-    @Query('date') dateStr: string,
+    @Query('startDate') startDateStr: string,
+    @Query('endDate') endDateStr: string,
   ) {
-    const date = dayjs.utc(dateStr).startOf('day').toDate();
+    const startDate = dayjs.utc(startDateStr).startOf('day').toDate();
+    const endDate = dayjs.utc(endDateStr).startOf('day').toDate();
+
     const isAvailable =
-      await this.roomAvailabilityService.checkRoomAvailability(roomId, date);
+      await this.roomAvailabilityService.checkRoomAvailabilityForDateRange(
+        roomId,
+        startDate,
+        endDate,
+      );
 
     return {
       roomId,
-      date,
+      startDate,
+      endDate,
       isAvailable,
     };
   }

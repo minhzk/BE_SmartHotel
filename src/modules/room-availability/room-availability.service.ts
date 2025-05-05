@@ -11,9 +11,11 @@ import aqp from 'api-query-params';
 import mongoose from 'mongoose';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
+import isBetween from 'dayjs/plugin/isBetween';
 
-// Cấu hình dayjs để sử dụng plugin UTC
+// Cấu hình dayjs để sử dụng plugin
 dayjs.extend(utc);
+dayjs.extend(isBetween);
 
 @Injectable()
 export class RoomAvailabilityService {
@@ -24,17 +26,39 @@ export class RoomAvailabilityService {
 
   async create(createRoomAvailabilityDto: CreateRoomAvailabilityDto) {
     try {
+      // Kiểm tra ngày kết thúc phải sau ngày bắt đầu
+      if (
+        dayjs(createRoomAvailabilityDto.end_date).isBefore(
+          dayjs(createRoomAvailabilityDto.start_date),
+        )
+      ) {
+        throw new BadRequestException('End date must be after start date');
+      }
+
+      // Kiểm tra xem đã có khoảng thời gian nào chồng chéo không
+      const conflictingRecord = await this.checkForOverlap(
+        createRoomAvailabilityDto.room_id,
+        createRoomAvailabilityDto.start_date,
+        createRoomAvailabilityDto.end_date,
+      );
+
+      if (conflictingRecord) {
+        throw new BadRequestException(
+          'There is an overlapping availability record for this room',
+        );
+      }
+
       const availability = await this.roomAvailabilityModel.create(
         createRoomAvailabilityDto,
       );
       return availability;
     } catch (error) {
-      if (error.code === 11000) {
-        throw new BadRequestException(
-          'Availability record already exists for this room and date',
-        );
+      if (error instanceof BadRequestException) {
+        throw error;
       }
-      throw error;
+      throw new BadRequestException(
+        `Failed to create room availability: ${error.message}`,
+      );
     }
   }
 
@@ -87,10 +111,28 @@ export class RoomAvailabilityService {
 
     return this.roomAvailabilityModel.find({
       room_id: roomId,
-      date: {
-        $gte: startDate,
-        $lte: endDate,
-      },
+      $or: [
+        // Trường hợp 1: khoảng thời gian đã đặt bao trùm khoảng thời gian muốn tìm
+        {
+          start_date: { $lte: startDate },
+          end_date: { $gte: endDate },
+        },
+        // Trường hợp 2: ngày bắt đầu nằm trong khoảng thời gian đã đặt
+        {
+          start_date: { $lte: startDate },
+          end_date: { $gt: startDate },
+        },
+        // Trường hợp 3: ngày kết thúc nằm trong khoảng thời gian đã đặt
+        {
+          start_date: { $lt: endDate },
+          end_date: { $gte: endDate },
+        },
+        // Trường hợp 4: khoảng thời gian muốn tìm bao trùm khoảng thời gian đã đặt
+        {
+          start_date: { $gte: startDate },
+          end_date: { $lte: endDate },
+        },
+      ],
     });
   }
 
@@ -141,37 +183,43 @@ export class RoomAvailabilityService {
     // Đảm bảo sử dụng UTC để xử lý ngày tháng
     const start = dayjs.utc(startDate).startOf('day');
     const end = dayjs.utc(endDate).startOf('day');
-    const daysCount = end.diff(start, 'day') + 1;
 
-    if (daysCount <= 0) {
+    if (end.isBefore(start)) {
       throw new BadRequestException('End date must be after start date');
     }
 
-    const createdRecords = [];
-    let currentDate = start;
+    // Xóa các bản ghi cũ trong khoảng thời gian này (nếu có)
+    await this.roomAvailabilityModel.deleteMany({
+      room_id: roomId,
+      $or: [
+        // Các trường hợp chồng chéo
+        {
+          start_date: { $lte: start.toDate() },
+          end_date: { $gte: start.toDate() },
+        },
+        {
+          start_date: { $lte: end.toDate() },
+          end_date: { $gte: end.toDate() },
+        },
+        {
+          start_date: { $gte: start.toDate() },
+          end_date: { $lte: end.toDate() },
+        },
+      ],
+    });
 
-    for (let i = 0; i < daysCount; i++) {
-      try {
-        const record = await this.roomAvailabilityModel.create({
-          room_id: roomId,
-          // Tạo date là UTC với giờ là 00:00:00
-          date: currentDate.toDate(),
-          status,
-          price_override: priceOverride,
-        });
-        createdRecords.push(record);
-      } catch (error) {
-        if (error.code !== 11000) {
-          // Ignore duplicate key errors
-          throw error;
-        }
-      }
-      currentDate = currentDate.add(1, 'day');
-    }
+    // Tạo bản ghi mới
+    const newRecord = await this.roomAvailabilityModel.create({
+      room_id: roomId,
+      start_date: start.toDate(),
+      end_date: end.toDate(),
+      status,
+      price_override: priceOverride,
+    });
 
     return {
-      message: `Generated ${createdRecords.length} availability records for room`,
-      records: createdRecords,
+      message: `Generated availability record for room`,
+      record: newRecord,
     };
   }
 
@@ -189,42 +237,100 @@ export class RoomAvailabilityService {
     const start = dayjs.utc(startDate).startOf('day').toDate();
     const end = dayjs.utc(endDate).startOf('day').toDate();
 
-    const result = await this.roomAvailabilityModel.updateMany(
-      {
-        room_id: roomId,
-        date: {
-          $gte: start,
-          $lte: end,
-        },
-      },
-      { $set: { status } },
+    // Kiểm tra xem có bản ghi nào trong khoảng thời gian này không
+    const existingRecords = await this.findByRoomAndDateRange(
+      roomId,
+      start,
+      end,
     );
 
-    return {
-      message: `Updated ${result.modifiedCount} availability records for room`,
-      matchedCount: result.matchedCount,
-      modifiedCount: result.modifiedCount,
-    };
+    if (existingRecords && existingRecords.length > 0) {
+      // Nếu có bản ghi, cập nhật trạng thái
+      for (const record of existingRecords) {
+        // Chỉ cập nhật những bản ghi có trạng thái khác với trạng thái cần cập nhật
+        if (record.status !== status) {
+          await this.roomAvailabilityModel.findByIdAndUpdate(record._id, {
+            status,
+          });
+        }
+      }
+
+      return {
+        message: `Updated ${existingRecords.length} availability records for room`,
+        modifiedCount: existingRecords.length,
+      };
+    } else {
+      // Nếu không có bản ghi, tạo mới
+      await this.generateAvailabilityForRoom(roomId, start, end, status);
+
+      return {
+        message: `Created a new availability record for room`,
+        modifiedCount: 1,
+      };
+    }
   }
 
-  async checkRoomAvailability(roomId: string, date: Date): Promise<boolean> {
-    const startOfDay = dayjs.utc(date).startOf('day').toDate();
-    const endOfDay = dayjs.utc(date).endOf('day').toDate();
-
-    const availability = await this.roomAvailabilityModel.findOne({
-      room_id: roomId,
-      date: {
-        $gte: startOfDay,
-        $lte: endOfDay,
-      },
-    });
-
-    // Nếu không tìm thấy bản ghi, coi như phòng có sẵn
-    if (!availability) {
-      return true; // Phòng được coi là khả dụng khi không có bản ghi
+  async checkRoomAvailabilityForDateRange(
+    roomId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<boolean> {
+    if (!mongoose.isValidObjectId(roomId)) {
+      throw new BadRequestException('Invalid room ID');
     }
 
-    // Nếu có bản ghi, kiểm tra trạng thái
-    return availability.status === RoomStatus.AVAILABLE;
+    // Convert to dayjs for easier manipulation
+    const start = dayjs.utc(startDate).startOf('day').toDate();
+    const end = dayjs.utc(endDate).startOf('day').toDate();
+
+    // Kiểm tra xem có bản ghi nào với trạng thái BOOKED hoặc MAINTENANCE trong khoảng thời gian này không
+    const unavailableRecords = await this.roomAvailabilityModel.find({
+      room_id: roomId,
+      status: { $in: [RoomStatus.BOOKED, RoomStatus.MAINTENANCE] },
+      $or: [
+        // Các trường hợp chồng chéo
+        {
+          start_date: { $lte: start },
+          end_date: { $gte: start },
+        },
+        {
+          start_date: { $lte: end },
+          end_date: { $gte: end },
+        },
+        {
+          start_date: { $gte: start },
+          end_date: { $lte: end },
+        },
+      ],
+    });
+
+    // Nếu có bản ghi không khả dụng, phòng không thể đặt
+    return unavailableRecords.length === 0;
+  }
+
+  // Hàm kiểm tra xem có khoảng thời gian nào chồng chéo không
+  private async checkForOverlap(
+    roomId: string,
+    startDate: Date,
+    endDate: Date,
+  ) {
+    return await this.roomAvailabilityModel.findOne({
+      room_id: roomId,
+      $or: [
+        // Các trường hợp chồng chéo
+        {
+          start_date: { $lte: startDate },
+          end_date: { $gte: startDate },
+        },
+        {
+          start_date: { $lte: endDate },
+          end_date: { $gte: endDate },
+        },
+        {
+          start_date: { $gte: startDate },
+          end_date: { $lte: endDate },
+        },
+      ],
+    });
   }
 }

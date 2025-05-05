@@ -17,7 +17,12 @@ export class CreateRoomAvailabilityDto {
   @IsDate()
   @Type(() => Date)
   @IsNotEmpty()
-  date: Date;
+  start_date: Date;
+
+  @IsDate()
+  @Type(() => Date)
+  @IsNotEmpty()
+  end_date: Date;
 
   @IsEnum(RoomStatus)
   @IsOptional()

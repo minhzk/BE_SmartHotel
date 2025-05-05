@@ -15,7 +15,10 @@ export class RoomAvailability {
   room_id: string;
 
   @Prop({ required: true })
-  date: Date;
+  start_date: Date;
+
+  @Prop({ required: true })
+  end_date: Date;
 
   @Prop({
     type: String,
@@ -31,5 +34,9 @@ export class RoomAvailability {
 export const RoomAvailabilitySchema =
   SchemaFactory.createForClass(RoomAvailability);
 
-// Tạo compound index cho room_id và date để tránh trùng lặp
-RoomAvailabilitySchema.index({ room_id: 1, date: 1 }, { unique: true });
+// Tạo index để tối ưu truy vấn
+RoomAvailabilitySchema.index({ room_id: 1, start_date: 1, end_date: 1 });
+
+// Index để tìm kiếm các khoảng ngày chồng chéo nhau
+RoomAvailabilitySchema.index({ room_id: 1, start_date: 1 });
+RoomAvailabilitySchema.index({ room_id: 1, end_date: 1 });

@@ -405,28 +405,12 @@ export class BookingsService {
     checkInDate: Date,
     checkOutDate: Date,
   ): Promise<boolean> {
-    // Convert dates to dayjs objects for easier manipulation
-    const startDate = dayjs.utc(checkInDate).startOf('day');
-    const endDate = dayjs.utc(checkOutDate).subtract(1, 'day').startOf('day'); // Exclude check-out day
-
-    // Check each day in the range
-    let currentDate = startDate;
-    while (
-      currentDate.isBefore(endDate) ||
-      currentDate.isSame(endDate, 'day')
-    ) {
-      const isAvailable =
-        await this.roomAvailabilityService.checkRoomAvailability(
-          roomId,
-          currentDate.toDate(),
-        );
-      if (!isAvailable) {
-        return false;
-      }
-      currentDate = currentDate.add(1, 'day');
-    }
-
-    return true;
+    // Chuyển đổi sang sử dụng checkRoomAvailabilityForDateRange để kiểm tra trực tiếp khoảng thời gian
+    return this.roomAvailabilityService.checkRoomAvailabilityForDateRange(
+      roomId,
+      checkInDate,
+      checkOutDate,
+    );
   }
 
   private async checkCancellationPolicy(booking: any): Promise<boolean> {

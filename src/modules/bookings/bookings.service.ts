@@ -260,9 +260,6 @@ export class BookingsService {
       ];
     }
 
-    // Log để debug
-    console.log('Final filter:', JSON.stringify(customFilter, null, 2));
-
     // Đặt giá trị mặc định cho phân trang
     const defaultPageSize = 10;
     const defaultCurrent = 1;
@@ -354,7 +351,7 @@ export class BookingsService {
   }
 
   async cancel(userId: string, cancelBookingDto: CancelBookingDto) {
-    const booking = await this.findOne(cancelBookingDto.booking_id, userId);
+    const booking = await this.findOne(cancelBookingDto._id, userId);
     if (booking.status === BookingStatus.CANCELED) {
       throw new BadRequestException('Booking is already canceled');
     }

@@ -205,9 +205,6 @@ export class PaymentsService {
       customFilter.payment_type = filters.paymentType;
     }
 
-    // Log để debug
-    console.log('Final filter:', JSON.stringify(customFilter, null, 2));
-
     // Đặt giá trị mặc định cho phân trang
     const defaultPageSize = 10;
     const defaultCurrent = 1;

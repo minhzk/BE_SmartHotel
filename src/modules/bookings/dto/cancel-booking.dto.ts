@@ -9,7 +9,7 @@ import {
 export class CancelBookingDto {
   @IsMongoId()
   @IsNotEmpty()
-  booking_id: string;
+  _id: string;
 
   @IsString()
   @MaxLength(500)

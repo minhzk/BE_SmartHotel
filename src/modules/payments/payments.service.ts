@@ -15,6 +15,7 @@ import { BookingsService } from '../bookings/bookings.service';
 import { User } from '../users/schemas/user.schema';
 import aqp from 'api-query-params';
 import { v4 as uuidv4 } from 'uuid';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class PaymentsService {
@@ -26,6 +27,7 @@ export class PaymentsService {
     private readonly vnpayService: VnpayService,
     @Inject(forwardRef(() => BookingsService))
     private readonly bookingsService: BookingsService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async createPayment(userId: string, createPaymentDto: CreatePaymentDto) {
@@ -289,8 +291,24 @@ export class PaymentsService {
       payment_date: new Date(),
     });
 
-    // Note: This logic would normally update the booking status
-    // and user wallet in a transaction, similar to BookingsService
+    // Xác định loại thanh toán cho thông báo
+    let notificationType: 'deposit' | 'remaining' | 'full' = 'full';
+    if (paymentType === PaymentType.DEPOSIT) notificationType = 'deposit';
+    else if (paymentType === PaymentType.REMAINING)
+      notificationType = 'remaining';
+
+    // Gửi thông báo thanh toán thành công
+    try {
+      await this.notificationsService.createPaymentReceivedNotification(
+        userId,
+        booking.booking_id,
+        amount,
+        notificationType, // Thêm tham số loại thanh toán
+      );
+    } catch (error) {
+      console.error(`Lỗi khi gửi thông báo thanh toán: ${error.message}`);
+      // Không làm ảnh hưởng đến luồng chính nếu gửi thông báo thất bại
+    }
 
     return {
       payment,
@@ -325,13 +343,53 @@ export class PaymentsService {
   }
 
   async processVnpayReturn(vnpParams: any) {
-    return await this.vnpayService.processReturnUrl(vnpParams);
+    const result = await this.vnpayService.processReturnUrl(vnpParams);
+
+    // Nếu thanh toán thành công, gửi thông báo
+    if (
+      result.success &&
+      result.paymentInfo &&
+      result.paymentInfo.status === PaymentStatus.COMPLETED
+    ) {
+      try {
+        await this.notificationsService.createPaymentReceivedNotification(
+          result.paymentInfo.user_id,
+          result.paymentInfo.booking_id,
+          result.paymentInfo.amount,
+        );
+      } catch (error) {
+        console.error(
+          `Lỗi khi gửi thông báo thanh toán VNPay: ${error.message}`,
+        );
+      }
+    }
+
+    return result;
   }
 
   async processVnpayReturnWithRedirect(vnpParams: any, res: any): Promise<any> {
     try {
       // Xử lý thanh toán
       const result = await this.vnpayService.processReturnUrl(vnpParams);
+
+      // Gửi thông báo nếu thành công
+      if (
+        result.success &&
+        result.paymentInfo &&
+        result.paymentInfo.status === PaymentStatus.COMPLETED
+      ) {
+        try {
+          await this.notificationsService.createPaymentReceivedNotification(
+            result.paymentInfo.user_id,
+            result.paymentInfo.booking_id,
+            result.paymentInfo.amount,
+          );
+        } catch (error) {
+          console.error(
+            `Lỗi khi gửi thông báo thanh toán VNPay: ${error.message}`,
+          );
+        }
+      }
 
       // Tạo URL để redirect đến frontend
       const frontendUrl = new URL(this.vnpayService.getFrontendResultUrl());
@@ -368,7 +426,26 @@ export class PaymentsService {
   }
 
   async processVnpayIpn(vnpParams: any) {
-    return await this.vnpayService.processIpnUrl(vnpParams);
+    const result = await this.vnpayService.processIpnUrl(vnpParams);
+
+    // Gửi thông báo nếu cập nhật thành công
+    if (
+      result.success &&
+      result.paymentInfo &&
+      result.paymentInfo.status === PaymentStatus.COMPLETED
+    ) {
+      try {
+        await this.notificationsService.createPaymentReceivedNotification(
+          result.paymentInfo.user_id,
+          result.paymentInfo.booking_id,
+          result.paymentInfo.amount,
+        );
+      } catch (error) {
+        console.error(`Lỗi khi gửi thông báo IPN VNPay: ${error.message}`);
+      }
+    }
+
+    return result;
   }
 
   async depositToWallet(
@@ -459,10 +536,11 @@ export class PaymentsService {
       throw new BadRequestException('Invalid refund amount');
     }
 
+    let result;
     // Xử lý hoàn tiền dựa trên phương thức thanh toán
     if (originalPayment.payment_method === 'vnpay') {
       // Gọi đến VNPay service để xử lý hoàn tiền
-      return await this.vnpayService.createRefundTransaction(
+      result = await this.vnpayService.createRefundTransaction(
         originalPayment.transaction_id,
         refundAmount,
         `Hoàn tiền cho đặt phòng ${originalPayment.booking_id}`,
@@ -483,18 +561,32 @@ export class PaymentsService {
         payment_date: new Date(),
       });
 
-      return {
+      result = {
         transaction_id: refundPayment.transaction_id,
         original_transaction_id: originalPayment.transaction_id,
         amount: refundAmount,
         status: PaymentStatus.REFUNDED,
         message: 'Refunded to wallet successfully',
       };
+    } else {
+      throw new BadRequestException(
+        `Refund not supported for payment method: ${originalPayment.payment_method}`,
+      );
     }
 
-    throw new BadRequestException(
-      `Refund not supported for payment method: ${originalPayment.payment_method}`,
-    );
+    // Gửi thông báo hoàn tiền thành công
+    try {
+      await this.notificationsService.createRefundNotification(
+        originalPayment.user_id.toString(),
+        originalPayment.booking_id,
+        refundAmount,
+        result.transaction_id,
+      );
+    } catch (error) {
+      console.error(`Lỗi khi gửi thông báo hoàn tiền: ${error.message}`);
+    }
+
+    return result;
   }
 
   getFrontendResultUrl(): string {

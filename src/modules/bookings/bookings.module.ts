@@ -23,10 +23,10 @@ import { BookingsScheduleService } from './bookings-schedule.service'; // Import
     ]),
     RoomAvailabilityModule,
     forwardRef(() => PaymentsModule),
-    NotificationsModule,
+    NotificationsModule, // Đã import module này, nó sẽ provide NotificationsService
   ],
   controllers: [BookingsController],
-  providers: [BookingsService, BookingsScheduleService], // Thêm service mới vào providers
+  providers: [BookingsService, BookingsScheduleService],
   exports: [BookingsService],
 })
 export class BookingsModule {}

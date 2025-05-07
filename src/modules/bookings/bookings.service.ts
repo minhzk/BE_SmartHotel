@@ -343,11 +343,51 @@ export class BookingsService {
       );
     }
 
-    return await this.bookingModel.findByIdAndUpdate(
+    // Lưu trạng thái booking trước khi cập nhật
+    const previousStatus = booking.status;
+    const updatedBooking = await this.bookingModel.findByIdAndUpdate(
       updateBookingDto._id,
       { ...updateBookingDto },
       { new: true },
     );
+
+    // Gửi thông báo khi trạng thái booking thay đổi
+    try {
+      // Lấy thông tin khách sạn
+      const hotel = await this.hotelModel.findById(booking.hotel_id);
+      const hotelName = hotel?.name || 'Khách sạn';
+
+      // Trường hợp booking được xác nhận
+      if (
+        previousStatus !== BookingStatus.CONFIRMED &&
+        updatedBooking.status === BookingStatus.CONFIRMED
+      ) {
+        await this.notificationsService.createBookingConfirmedNotification(
+          booking.user_id.toString(),
+          booking.booking_id,
+          hotelName,
+        );
+      }
+
+      // Trường hợp booking bị hủy
+      if (
+        previousStatus !== BookingStatus.CANCELED &&
+        updatedBooking.status === BookingStatus.CANCELED
+      ) {
+        await this.notificationsService.createBookingCanceledNotification(
+          booking.user_id.toString(),
+          booking.booking_id,
+          hotelName,
+        );
+      }
+    } catch (error) {
+      console.error(
+        `Failed to create status change notification: ${error.message}`,
+      );
+      // Không ảnh hưởng đến luồng chính nếu gửi thông báo thất bại
+    }
+
+    return updatedBooking;
   }
 
   async cancel(userId: string, cancelBookingDto: CancelBookingDto) {
@@ -385,7 +425,7 @@ export class BookingsService {
     );
 
     // Update booking status
-    return await this.bookingModel.findByIdAndUpdate(
+    const canceledBooking = await this.bookingModel.findByIdAndUpdate(
       booking._id,
       {
         status: BookingStatus.CANCELED,
@@ -395,6 +435,23 @@ export class BookingsService {
       },
       { new: true },
     );
+
+    // Gửi thông báo hủy đặt phòng
+    try {
+      const hotel = await this.hotelModel.findById(booking.hotel_id);
+      await this.notificationsService.createBookingCanceledNotification(
+        booking.user_id.toString(),
+        booking.booking_id,
+        hotel?.name || 'Khách sạn',
+      );
+    } catch (error) {
+      console.error(
+        `Failed to create cancellation notification: ${error.message}`,
+      );
+      // Không ảnh hưởng đến luồng chính nếu gửi thông báo thất bại
+    }
+
+    return canceledBooking;
   }
 
   async checkRoomAvailability(
@@ -527,6 +584,18 @@ export class BookingsService {
       );
     }
 
+    // Gửi thông báo thanh toán thành công
+    try {
+      await this.notificationsService.createPaymentReceivedNotification(
+        booking.user_id.toString(),
+        booking.booking_id,
+        booking.deposit_amount,
+      );
+    } catch (error) {
+      console.error(`Failed to create payment notification: ${error.message}`);
+      // Không ảnh hưởng đến luồng chính nếu gửi thông báo thất bại
+    }
+
     return this.findOne(bookingId);
   }
 
@@ -569,6 +638,18 @@ export class BookingsService {
         },
         { new: true },
       );
+    }
+
+    // Gửi thông báo thanh toán thành công
+    try {
+      await this.notificationsService.createPaymentReceivedNotification(
+        booking.user_id.toString(),
+        booking.booking_id,
+        booking.remaining_amount,
+      );
+    } catch (error) {
+      console.error(`Failed to create payment notification: ${error.message}`);
+      // Không ảnh hưởng đến luồng chính nếu gửi thông báo thất bại
     }
 
     return this.findOne(bookingId);

@@ -10,16 +10,31 @@ import { NotificationType } from './schemas/notification.schema';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import aqp from 'api-query-params';
 import mongoose from 'mongoose';
+import { NotificationsGateway } from './notifications.gateway';
 
 @Injectable()
 export class NotificationsService {
   constructor(
     @InjectModel(Notification.name)
     private notificationModel: Model<Notification>,
+    private readonly notificationsGateway: NotificationsGateway,
   ) {}
 
   async create(createNotificationDto: CreateNotificationDto) {
-    return await this.notificationModel.create(createNotificationDto);
+    // Tạo thông báo trong database
+    const notification = await this.notificationModel.create(
+      createNotificationDto,
+    );
+
+    // Gửi thông báo qua socket
+    if (notification) {
+      this.notificationsGateway.sendNotificationToUser(
+        createNotificationDto.user_id,
+        notification,
+      );
+    }
+
+    return notification;
   }
 
   async findAll(
@@ -138,6 +153,114 @@ export class NotificationsService {
       title: 'Đặt phòng thành công',
       message: `Bạn đã đặt phòng thành công tại ${hotelName}. Mã đặt phòng: ${bookingId}`,
       data: { booking_id: bookingId },
+    });
+
+    return notification;
+  }
+
+  // Thêm các phương thức tạo thông báo khác
+  async createBookingConfirmedNotification(
+    userId: string,
+    bookingId: string,
+    hotelName: string,
+  ) {
+    const notification = await this.create({
+      user_id: userId,
+      type: NotificationType.BOOKING_CONFIRMED,
+      title: 'Đặt phòng đã được xác nhận',
+      message: `Đặt phòng của bạn tại ${hotelName} đã được xác nhận. Mã đặt phòng: ${bookingId}`,
+      data: { booking_id: bookingId },
+    });
+
+    return notification;
+  }
+
+  async createBookingCanceledNotification(
+    userId: string,
+    bookingId: string,
+    hotelName: string,
+  ) {
+    const notification = await this.create({
+      user_id: userId,
+      type: NotificationType.BOOKING_CANCELED,
+      title: 'Đặt phòng đã bị hủy',
+      message: `Đặt phòng của bạn tại ${hotelName} đã bị hủy. Mã đặt phòng: ${bookingId}`,
+      data: { booking_id: bookingId },
+    });
+
+    return notification;
+  }
+
+  async createPaymentReceivedNotification(
+    userId: string,
+    bookingId: string,
+    amount: number,
+    paymentType: 'deposit' | 'remaining' | 'full' | 'wallet_deposit' = 'full',
+  ) {
+    // Cập nhật tiêu đề và nội dung thông báo tùy theo loại thanh toán
+    let title = 'Thanh toán thành công';
+    let message = `Bạn đã thanh toán thành công ${amount.toLocaleString('vi-VN')} VNĐ cho đơn đặt phòng ${bookingId}`;
+
+    if (paymentType === 'deposit') {
+      title = 'Thanh toán đặt cọc thành công';
+      message = `Bạn đã thanh toán đặt cọc thành công ${amount.toLocaleString('vi-VN')} VNĐ cho đơn đặt phòng ${bookingId}`;
+    } else if (paymentType === 'remaining') {
+      title = 'Thanh toán số tiền còn lại thành công';
+      message = `Bạn đã thanh toán số tiền còn lại thành công ${amount.toLocaleString('vi-VN')} VNĐ cho đơn đặt phòng ${bookingId}`;
+    } else if (paymentType === 'wallet_deposit') {
+      title = 'Nạp tiền vào ví thành công';
+      message = `Bạn đã nạp thành công ${amount.toLocaleString('vi-VN')} VNĐ vào ví`;
+    }
+
+    const notification = await this.create({
+      user_id: userId,
+      type: NotificationType.PAYMENT_RECEIVED,
+      title,
+      message,
+      data: {
+        booking_id: bookingId,
+        amount,
+        payment_type: paymentType,
+      },
+    });
+
+    return notification;
+  }
+
+  async createCheckInReminderNotification(
+    userId: string,
+    bookingId: string,
+    hotelName: string,
+    checkInDate: Date,
+  ) {
+    const formattedDate = new Date(checkInDate).toLocaleDateString('vi-VN');
+    const notification = await this.create({
+      user_id: userId,
+      type: NotificationType.CHECK_IN_REMINDER,
+      title: 'Nhắc nhở check-in',
+      message: `Bạn sẽ check-in vào ngày ${formattedDate} tại ${hotelName}. Mã đặt phòng: ${bookingId}`,
+      data: { booking_id: bookingId, check_in_date: checkInDate },
+    });
+
+    return notification;
+  }
+
+  async createRefundNotification(
+    userId: string,
+    bookingId: string,
+    amount: number,
+    transactionId: string,
+  ) {
+    const notification = await this.create({
+      user_id: userId,
+      type: NotificationType.PAYMENT_REFUNDED, // Sử dụng kiểu thông báo mới
+      title: 'Hoàn tiền thành công',
+      message: `Bạn đã được hoàn ${amount.toLocaleString('vi-VN')} VNĐ cho đơn đặt phòng ${bookingId}`,
+      data: {
+        booking_id: bookingId,
+        amount: amount,
+        transaction_id: transactionId,
+      },
     });
 
     return notification;

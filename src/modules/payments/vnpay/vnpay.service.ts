@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Payment, PaymentStatus, PaymentType } from '../schemas/payment.schema';
 import { CreateVnpayUrlDto } from '../dto/create-vnpay-url.dto';
 import { Booking } from '@/modules/bookings/schemas/booking.schema';
+import { NotificationsService } from '@/modules/notifications/notifications.service';
 
 @Injectable()
 export class VnpayService {
@@ -16,6 +17,7 @@ export class VnpayService {
     private readonly configService: ConfigService,
     @InjectModel(Payment.name) private paymentModel: Model<Payment>,
     @InjectModel(Booking.name) private bookingModel: Model<Booking>,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   private readonly vnpTmnCode =
@@ -169,7 +171,7 @@ export class VnpayService {
     if (transactionStatus === '00') {
       // Payment successful
       updateData.status = PaymentStatus.COMPLETED;
-      
+
       // Gọi service để cập nhật booking status nếu thanh toán thành công
       try {
         await this.updateBookingAfterSuccessfulPayment(payment);
@@ -200,10 +202,20 @@ export class VnpayService {
   }
 
   // Thêm phương thức mới để cập nhật booking status sau khi thanh toán thành công
-  private async updateBookingAfterSuccessfulPayment(payment: any): Promise<void> {
+  private async updateBookingAfterSuccessfulPayment(
+    payment: any,
+  ): Promise<void> {
     const bookingId = payment.booking_id;
-    
+
     try {
+      // Tìm thông tin booking để có user_id
+      const booking = await this.bookingModel.findOne({
+        booking_id: bookingId,
+      });
+      if (!booking) {
+        throw new BadRequestException(`Booking ${bookingId} not found`);
+      }
+
       // Xác định loại thanh toán
       if (payment.payment_type === PaymentType.DEPOSIT) {
         // Nếu là thanh toán đặt cọc
@@ -212,16 +224,32 @@ export class VnpayService {
           {
             deposit_status: 'paid',
             payment_status: 'partially_paid',
-            status: 'confirmed'
-          }
+            status: 'confirmed',
+          },
+        );
+
+        // Gửi thông báo thanh toán đặt cọc thành công
+        await this.notificationsService.createPaymentReceivedNotification(
+          booking.user_id.toString(),
+          bookingId,
+          payment.amount,
+          'deposit', // Thêm tham số loại thanh toán
         );
       } else if (payment.payment_type === PaymentType.REMAINING) {
         // Nếu là thanh toán phần còn lại
         await this.bookingModel.updateOne(
           { booking_id: bookingId },
           {
-            payment_status: 'paid'
-          }
+            payment_status: 'paid',
+          },
+        );
+
+        // Gửi thông báo thanh toán phần còn lại thành công
+        await this.notificationsService.createPaymentReceivedNotification(
+          booking.user_id.toString(),
+          bookingId,
+          payment.amount,
+          'remaining', // Thêm tham số loại thanh toán
         );
       } else if (payment.payment_type === PaymentType.FULL_PAYMENT) {
         // Nếu là thanh toán toàn bộ
@@ -230,11 +258,18 @@ export class VnpayService {
           {
             deposit_status: 'paid',
             payment_status: 'paid',
-            status: 'confirmed'
-          }
+            status: 'confirmed',
+          },
+        );
+
+        // Gửi thông báo thanh toán toàn bộ thành công
+        await this.notificationsService.createPaymentReceivedNotification(
+          booking.user_id.toString(),
+          bookingId,
+          payment.amount,
+          'full', // Thêm tham số loại thanh toán
         );
       }
-      
       console.log(`Booking ${bookingId} updated after successful payment`);
     } catch (error) {
       console.error(`Error updating booking ${bookingId}:`, error.message);

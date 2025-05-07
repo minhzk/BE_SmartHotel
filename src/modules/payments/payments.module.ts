@@ -10,6 +10,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { PaymentProcessorService } from './payment-processor.service';
 import { Booking, BookingSchema } from '../bookings/schemas/booking.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { User, UserSchema } from '../users/schemas/user.schema';
     forwardRef(() => BookingsModule),
     ConfigModule,
     EventEmitterModule.forRoot(),
+    NotificationsModule,
   ],
   controllers: [PaymentsController],
   providers: [PaymentsService, VnpayService, PaymentProcessorService],

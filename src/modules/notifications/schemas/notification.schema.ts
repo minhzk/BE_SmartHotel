@@ -9,6 +9,7 @@ export enum NotificationType {
   BOOKING_CONFIRMED = 'booking_confirmed',
   BOOKING_CANCELED = 'booking_canceled',
   PAYMENT_RECEIVED = 'payment_received',
+  PAYMENT_REFUNDED = 'payment_refunded', // Thêm loại thông báo hoàn tiền mới
   PAYMENT_DUE = 'payment_due',
   CHECK_IN_REMINDER = 'check_in_reminder',
   REVIEW_RECEIVED = 'review_received',

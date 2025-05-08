@@ -22,6 +22,15 @@ export class ChatbotController {
   createSession(@Request() req, @Body() createSessionDto: CreateSessionDto) {
     // If user is logged in, get their ID
     const userId = req.user ? req.user._id : createSessionDto.user_id;
+
+    // Log capabilities for debugging
+    if (createSessionDto.capabilities) {
+      console.log(
+        'Session created with capabilities:',
+        createSessionDto.capabilities,
+      );
+    }
+
     return this.chatbotService.createSession(userId, createSessionDto);
   }
 

@@ -8,6 +8,23 @@ import { ObjectId } from 'mongoose';
 export class ChatbotDataService {
   private readonly logger = new Logger(ChatbotDataService.name);
 
+  // Ánh xạ tên thành phố có dấu -> không dấu
+  private readonly cityMapping = {
+    'hồ chí minh': 'ho chi minh',
+    'hà nội': 'ha noi',
+    'đà nẵng': 'da nang',
+    'nha trang': 'nha trang',
+    'phú quốc': 'phu quoc',
+    'hội an': 'hoi an',
+    huế: 'hue',
+    'đà lạt': 'da lat',
+    'vũng tàu': 'vung tau',
+    'cần thơ': 'can tho',
+    sapa: 'sapa',
+    'quy nhơn': 'quy nhon',
+    'hạ long': 'ha long',
+  };
+
   constructor(
     private hotelsService: HotelsService,
     private roomsService: RoomsService,
@@ -16,13 +33,51 @@ export class ChatbotDataService {
 
   async getHotelsByCity(city: string) {
     try {
-      const query = city ? `city=${encodeURIComponent(city)}` : '';
+      // Chuẩn hóa tên thành phố
+      const normalizedCity = this.normalizeCity(city);
+      this.logger.log(
+        `Tìm kiếm khách sạn với thành phố: "${normalizedCity}" (từ "${city}")`,
+      );
+
+      const query = normalizedCity
+        ? `city=${encodeURIComponent(normalizedCity)}`
+        : '';
       const hotels = await this.hotelsService.findAll(query, 1, 5);
+
+      if (hotels.results && hotels.results.length > 0) {
+        this.logger.log(
+          `Tìm thấy ${hotels.results.length} khách sạn ở ${normalizedCity}`,
+        );
+      } else {
+        this.logger.log(`Không tìm thấy khách sạn nào ở ${normalizedCity}`);
+      }
+
       return hotels.results || [];
     } catch (error) {
       this.logger.error(`Error fetching hotels by city: ${error.message}`);
       return [];
     }
+  }
+
+  // Phương thức chuyển đổi tên thành phố từ dạng có dấu sang không dấu
+  private normalizeCity(city: string): string {
+    const lowerCity = city.toLowerCase();
+
+    // Kiểm tra trong bản đồ ánh xạ
+    if (this.cityMapping[lowerCity]) {
+      return this.cityMapping[lowerCity];
+    }
+
+    // Trường hợp không có trong ánh xạ, thử chuyển đổi chung
+    return this.removeDiacritics(city);
+  }
+
+  // Hàm loại bỏ dấu tiếng Việt
+  private removeDiacritics(str: string): string {
+    return str
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[đĐ]/g, (match) => (match === 'đ' ? 'd' : 'D'));
   }
 
   async getHotelDetails(hotelId: string) {

@@ -166,9 +166,11 @@ export class ChatbotService {
         (session.context as any).mode === 'general' ||
         (session.context as any).capabilities?.hotel_queries
       ) {
+        // Truyền thêm message gốc của người dùng vào để phân tích tốt hơn
         const enhancedResponse = await this.enhanceResponseWithData(
           response,
           session.context,
+          message, // Truyền thêm userMessage vào
         );
         response.message = enhancedResponse || response.message;
       }
@@ -391,37 +393,96 @@ export class ChatbotService {
   private async enhanceResponseWithData(
     response: any,
     context: any,
+    userMessage: string = '',
   ): Promise<string | null> {
     try {
       const originalMessage = response.message;
       const intent = response.intent || '';
 
-      // Danh sách khách sạn theo thành phố
-      const cityMatch = originalMessage.match(
-        /khách sạn (?:ở|tại) ([a-zA-Z\sÀ-ỹ]+)/i,
-      );
-      if (cityMatch) {
-        const city = cityMatch[1].trim();
-        const hotels = await this.chatbotDataService.getHotelsByCity(city);
+      this.logger.log(`Enhancing response for: "${originalMessage}"`);
+      if (userMessage) {
+        this.logger.log(`Original user message: "${userMessage}"`);
+      }
 
-        if (hotels.length > 0) {
-          const hotelInfo = hotels
-            .map(
-              (h) =>
-                `- ${h.name}: ${h.rating} sao, từ ${h.min_price?.toLocaleString()} VND/đêm`,
-            )
-            .join('\n');
+      // Tìm kiếm thành phố trong cả userMessage và originalMessage
+      let city = null;
+      let hotels = [];
 
-          return `${originalMessage}\n\nDưới đây là một số khách sạn ở ${city}:\n${hotelInfo}`;
+      // Danh sách các biểu thức chính quy để tìm thành phố
+      const cityPatterns = [
+        // Tìm trong cấu trúc "khách sạn ở/tại <thành phố>"
+        /khách sạn (?:ở|tại|ở tại|của|trong) ([\p{L}\s]+)/iu,
+
+        // Bắt trường hợp người dùng chỉ hỏi về một thành phố cụ thể
+        /(hồ chí minh|hà nội|đà nẵng|nha trang|phú quốc|hội an|huế|đà lạt|vũng tàu|cần thơ|sapa|quy nhơn|hạ long|phan thiết)/iu,
+
+        // Bắt các biến thể viết tắt của Hồ Chí Minh
+        /(tp\s*\.?\s*hồ chí minh|tp\s*\.?\s*hcm|hcm|sài gòn)/iu,
+      ];
+
+      // Tìm trong cả userMessage và originalMessage
+      const searchTexts = userMessage;
+
+      // Thử tìm thành phố trong các message
+      for (const text of searchTexts) {
+        if (city) break; // Nếu đã tìm thấy rồi thì dừng
+
+        for (const pattern of cityPatterns) {
+          const match = text.match(pattern);
+          if (match) {
+            city = match[1].trim();
+            this.logger.log(`Tìm thấy thành phố: "${city}" trong văn bản`);
+
+            // Chuẩn hóa tên thành phố
+            const cityLower = city.toLowerCase();
+            if (
+              cityLower === 'hcm' ||
+              cityLower === 'tp.hcm' ||
+              cityLower === 'tp hcm' ||
+              cityLower === 'tphcm' ||
+              cityLower === 'sài gòn'
+            ) {
+              city = 'hồ chí minh';
+              this.logger.log(`Đã chuẩn hóa thành: hồ chí minh`);
+            }
+
+            hotels = await this.chatbotDataService.getHotelsByCity(city);
+            this.logger.log(`Tìm thấy ${hotels.length} khách sạn ở ${city}`);
+            break;
+          }
         }
       }
 
-      // Khách sạn đánh giá cao
+      // Nếu tìm thấy thành phố và có khách sạn
+      if (city && hotels.length > 0) {
+        const hotelInfo = hotels
+          .map(
+            (h) =>
+              `- ${h.name}: ${h.rating} sao, từ ${h.min_price?.toLocaleString()} VND/đêm`,
+          )
+          .join('\n');
+
+        // Tạo phản hồi hoàn toàn mới thay vì nối thêm vào originalMessage
+        return `Dưới đây là một số khách sạn ở ${city}:\n${hotelInfo}\n\nBạn muốn biết thêm thông tin về khách sạn nào không?`;
+      }
+
+      // Khách sạn đánh giá cao - Cải tiến nhận diện
+      const bestHotelPattern =
+        /(khách sạn|ks).*?(tốt|cao|đánh giá|chất lượng|sao|5 sao|nổi tiếng|nổi bật|sang|sang trọng|luxury|nổi tiếng|danh tiếng|top)/i;
       if (
-        originalMessage.toLowerCase().includes('khách sạn tốt nhất') ||
-        originalMessage.toLowerCase().includes('khách sạn đánh giá cao')
+        bestHotelPattern.test(userMessage) ||
+        userMessage.toLowerCase().includes('khách sạn tốt') ||
+        userMessage.toLowerCase().includes('khách sạn đánh giá cao') ||
+        userMessage.toLowerCase().includes('khách sạn đẹp') ||
+        userMessage.toLowerCase().includes('khách sạn nổi tiếng') ||
+        (originalMessage &&
+          originalMessage.toLowerCase().includes('khách sạn') &&
+          (originalMessage.toLowerCase().includes('đánh giá cao') ||
+            originalMessage.toLowerCase().includes('tốt nhất')))
       ) {
+        this.logger.log(`Phát hiện yêu cầu về khách sạn đánh giá cao`);
         const topHotels = await this.chatbotDataService.getTopRatedHotels();
+        this.logger.log(`Tìm thấy ${topHotels.length} khách sạn đánh giá cao`);
 
         if (topHotels.length > 0) {
           const hotelInfo = topHotels
@@ -431,12 +492,15 @@ export class ChatbotService {
             )
             .join('\n');
 
-          return `${originalMessage}\n\nDưới đây là những khách sạn được đánh giá cao nhất trong hệ thống:\n${hotelInfo}`;
+          // Tạo phản hồi hoàn toàn mới
+          return `Dưới đây là những khách sạn được đánh giá cao nhất trong hệ thống:\n${hotelInfo}\n\nBạn muốn xem thêm thông tin chi tiết về khách sạn nào không?`;
+        } else {
+          this.logger.log(`Không tìm thấy dữ liệu khách sạn đánh giá cao`);
         }
       }
 
       // Tìm kiếm phòng theo loại
-      const roomTypeMatch = originalMessage.match(
+      const roomTypeMatch = userMessage.match(
         /phòng (standard|deluxe|suite|family|executive)/i,
       );
       if (roomTypeMatch) {
@@ -452,12 +516,12 @@ export class ChatbotService {
             )
             .join('\n');
 
-          return `${originalMessage}\n\nTôi đã tìm thấy các phòng loại ${roomType} sau:\n${roomInfo}`;
+          return `Tôi đã tìm thấy các phòng loại ${roomType} sau:\n${roomInfo}`;
         }
       }
 
       // Khách sạn theo khoảng giá
-      const priceMatch = originalMessage.match(
+      const priceMatch = userMessage.match(
         /khách sạn (?:có )?giá (?:từ|khoảng) (\d+)(?:\s*(?:đến|tới|-)?\s*(\d+))?/i,
       );
       if (priceMatch) {
@@ -479,17 +543,17 @@ export class ChatbotService {
             )
             .join('\n');
 
-          return `${originalMessage}\n\nDưới đây là những khách sạn trong khoảng giá bạn yêu cầu:\n${hotelInfo}`;
+          return `Dưới đây là những khách sạn trong khoảng giá bạn yêu cầu:\n${hotelInfo}`;
         }
       }
 
       // Kiểm tra tình trạng phòng trống
-      const availabilityMatch = originalMessage.match(
+      const availabilityMatch = userMessage.match(
         /phòng trống|phòng còn trống|còn phòng|đặt phòng/i,
       );
       if (availabilityMatch) {
         // Trích xuất thông tin về ngày từ ngữ cảnh hoặc tin nhắn
-        const dateInfo = this.extractDateInfo(originalMessage, context);
+        const dateInfo = this.extractDateInfo(userMessage, context);
 
         if (dateInfo.hasValidDates && context?.hotel_id) {
           const availableRooms =
@@ -507,11 +571,11 @@ export class ChatbotService {
               )
               .join('\n');
 
-            return `${originalMessage}\n\nDưới đây là các phòng còn trống từ ${dateInfo.checkIn} đến ${dateInfo.checkOut}:\n${roomInfo}`;
+            return `Dưới đây là các phòng còn trống từ ${dateInfo.checkIn} đến ${dateInfo.checkOut}:\n${roomInfo}`;
           } else {
-            return `${originalMessage}\n\nRất tiếc, không có phòng trống nào trong khoảng thời gian bạn yêu cầu. Bạn có thể thử chọn ngày khác hoặc khách sạn khác.`;
+            return `Rất tiếc, không có phòng trống nào trong khoảng thời gian bạn yêu cầu. Bạn có thể thử chọn ngày khác hoặc khách sạn khác.`;
           }
-        } else if (this.needsHotelData(originalMessage)) {
+        } else if (this.needsHotelData(userMessage)) {
           // Nếu không có ngày cụ thể, cung cấp thông tin tổng quan về khách sạn
           const hotels = await this.chatbotDataService.getTopRatedHotels(3);
 
@@ -523,16 +587,16 @@ export class ChatbotService {
               )
               .join('\n');
 
-            return `${originalMessage}\n\nTôi cần biết thông tin về ngày check-in và check-out để kiểm tra phòng trống. Trong khi đó, đây là một số khách sạn nổi bật của chúng tôi:\n${hotelInfo}\n\nBạn có thể cho biết thời gian dự kiến đặt phòng không?`;
+            return `Tôi cần biết thông tin về ngày check-in và check-out để kiểm tra phòng trống. Trong khi đó, đây là một số khách sạn nổi bật của chúng tôi:\n${hotelInfo}\n\nBạn có thể cho biết thời gian dự kiến đặt phòng không?`;
           }
         }
       }
 
       // Tìm kiếm thông tin tiện ích
       if (
-        originalMessage.toLowerCase().includes('tiện ích') ||
-        originalMessage.toLowerCase().includes('dịch vụ') ||
-        originalMessage.toLowerCase().includes('amenities')
+        userMessage.toLowerCase().includes('tiện ích') ||
+        userMessage.toLowerCase().includes('dịch vụ') ||
+        userMessage.toLowerCase().includes('amenities')
       ) {
         // Nếu đang nói về một khách sạn cụ thể
         if (context?.hotel_id) {
@@ -541,24 +605,24 @@ export class ChatbotService {
           );
 
           if (hotelDetails && hotelDetails.amenities) {
-            return `${originalMessage}\n\nKhách sạn ${hotelDetails.name} cung cấp các tiện ích sau:\n- ${hotelDetails.amenities.join('\n- ')}`;
+            return `Khách sạn ${hotelDetails.name} cung cấp các tiện ích sau:\n- ${hotelDetails.amenities.join('\n- ')}`;
           }
         } else {
-          return `${originalMessage}\n\nCác tiện ích phổ biến tại khách sạn của chúng tôi bao gồm:\n- WiFi miễn phí\n- Bữa sáng\n- Hồ bơi\n- Phòng tập gym\n- Dịch vụ đưa đón sân bay\n- Dịch vụ phòng 24/7\n\nMỗi khách sạn có thể có các tiện ích khác nhau. Bạn quan tâm đến khách sạn nào cụ thể?`;
+          return `Các tiện ích phổ biến tại khách sạn của chúng tôi bao gồm:\n- WiFi miễn phí\n- Bữa sáng\n- Hồ bơi\n- Phòng tập gym\n- Dịch vụ đưa đón sân bay\n- Dịch vụ phòng 24/7\n\nMỗi khách sạn có thể có các tiện ích khác nhau. Bạn quan tâm đến khách sạn nào cụ thể?`;
         }
       }
 
       // Trả lời các câu hỏi về chính sách đặt phòng, hủy phòng
       if (
-        originalMessage.toLowerCase().includes('chính sách') ||
-        originalMessage.toLowerCase().includes('hủy phòng') ||
-        originalMessage.toLowerCase().includes('hoàn tiền')
+        userMessage.toLowerCase().includes('chính sách') ||
+        userMessage.toLowerCase().includes('hủy phòng') ||
+        userMessage.toLowerCase().includes('hoàn tiền')
       ) {
-        return `${originalMessage}\n\nChính sách đặt phòng và hủy phòng chung của chúng tôi:\n\n- Đặt cọc: 30% giá trị đặt phòng để đảm bảo việc đặt phòng\n- Hủy miễn phí: Trước 2 ngày so với ngày nhận phòng\n- Hoàn tiền: 100% tiền đặt cọc nếu hủy trong thời hạn miễn phí\n- Check-in: 14:00, Check-out: 12:00\n\nMỗi khách sạn có thể có chính sách riêng. Vui lòng kiểm tra trang chi tiết khách sạn để biết thêm thông tin.`;
+        return `Chính sách đặt phòng và hủy phòng chung của chúng tôi:\n\n- Đặt cọc: 30% giá trị đặt phòng để đảm bảo việc đặt phòng\n- Hủy miễn phí: Trước 2 ngày so với ngày nhận phòng\n- Hoàn tiền: 100% tiền đặt cọc nếu hủy trong thời hạn miễn phí\n- Check-in: 14:00, Check-out: 12:00\n\nMỗi khách sạn có thể có chính sách riêng. Vui lòng kiểm tra trang chi tiết khách sạn để biết thêm thông tin.`;
       }
 
       // Nếu user đang hỏi về danh sách khách sạn nói chung
-      if (this.needsHotelData(originalMessage)) {
+      if (this.needsHotelData(userMessage)) {
         const hotels = await this.chatbotDataService.getTopRatedHotels(5);
 
         if (hotels.length > 0) {
@@ -569,7 +633,7 @@ export class ChatbotService {
             )
             .join('\n');
 
-          return `${originalMessage}\n\nDưới đây là một số khách sạn nổi bật trong hệ thống của chúng tôi:\n${hotelInfo}`;
+          return `Dưới đây là một số khách sạn nổi bật trong hệ thống của chúng tôi:\n${hotelInfo}`;
         }
       }
 

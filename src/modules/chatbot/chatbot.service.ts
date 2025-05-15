@@ -499,25 +499,128 @@ export class ChatbotService {
         }
       }
 
-      // Tìm kiếm phòng theo loại
-      const roomTypeMatch = userMessage.match(
-        /phòng (standard|deluxe|suite|family|executive)/i,
-      );
-      if (roomTypeMatch) {
-        const roomType = roomTypeMatch[1];
+      // Tìm kiếm phòng theo loại - Cải tiến để hỗ trợ tất cả RoomType
+      const roomTypeKeywords = {
+        standard: 'Standard',
+        'tiêu chuẩn': 'Standard',
+        deluxe: 'Deluxe',
+        'sang trọng': 'Deluxe',
+        suite: 'Suite',
+        'phòng suite': 'Suite',
+        executive: 'Executive',
+        'hạng sang': 'Executive',
+        family: 'Family',
+        'gia đình': 'Family',
+        villa: 'Villa',
+        'biệt thự': 'Villa',
+        bungalow: 'Bungalow',
+        'nhà vườn': 'Bungalow',
+        studio: 'Studio',
+        connecting: 'Connecting',
+        'liên thông': 'Connecting',
+        accessible: 'Accessible',
+        'tiếp cận': 'Accessible',
+        penthouse: 'Penthouse',
+        'áp mái': 'Penthouse',
+        presidential: 'Presidential',
+        'tổng thống': 'Presidential',
+      };
+
+      // Log để debug các từ khóa loại phòng
+      this.logger.log(`Kiểm tra loại phòng trong message: ${userMessage}`);
+
+      // Kiểm tra trực tiếp từng loại phòng trong message
+      let roomTypeFound = null;
+      let matchedKeyword = null;
+
+      // Tìm từ khóa loại phòng trong message
+      for (const keyword of Object.keys(roomTypeKeywords)) {
+        if (userMessage.toLowerCase().includes(keyword.toLowerCase())) {
+          matchedKeyword = keyword.toLowerCase();
+          roomTypeFound = roomTypeKeywords[matchedKeyword];
+          this.logger.log(
+            `Tìm thấy từ khóa trực tiếp: "${matchedKeyword}" -> ${roomTypeFound}`,
+          );
+          break;
+        }
+      }
+
+      // Nếu không tìm thấy bằng cách trên, thử dùng regex
+      if (!roomTypeFound) {
+        // Mẫu regex linh hoạt hơn, bắt nhiều dạng câu khác nhau
+        const roomTypePattern = new RegExp(
+          `phòng(?:\\s+|\\s+loại\\s+|\\s+kiểu\\s+|\\s+dạng\\s+)(${Object.keys(roomTypeKeywords).join('|')})`,
+          'i',
+        );
+        const roomTypeMatch = userMessage.match(roomTypePattern);
+
+        if (roomTypeMatch) {
+          matchedKeyword = roomTypeMatch[1].toLowerCase();
+          roomTypeFound = roomTypeKeywords[matchedKeyword];
+          this.logger.log(
+            `Tìm thấy qua regex: "${matchedKeyword}" -> ${roomTypeFound}`,
+          );
+        }
+      }
+
+      if (roomTypeFound) {
+        this.logger.log(
+          `Xử lý yêu cầu về phòng loại ${roomTypeFound} (từ khóa: ${matchedKeyword})`,
+        );
+
         const rooms =
-          await this.chatbotDataService.getRoomsByTypeAndHotel(roomType);
+          await this.chatbotDataService.getRoomsByTypeAndHotel(roomTypeFound);
+        this.logger.log(`Tìm thấy ${rooms.length} phòng loại ${roomTypeFound}`);
 
         if (rooms.length > 0) {
+          // Lấy danh sách hotel_id độc đáo từ các phòng
+          const uniqueHotelIds = [
+            ...new Set(rooms.map((r) => r.hotel_id).filter((id) => id)),
+          ];
+          const hotelNames = new Map(); // Map để lưu trữ hotel_id -> hotel_name
+
+          // Lấy thông tin các khách sạn
+          for (const hotelId of uniqueHotelIds) {
+            try {
+              const hotel =
+                await this.chatbotDataService.getHotelDetails(hotelId);
+              if (hotel && hotel.name) {
+                hotelNames.set(hotelId, hotel.name);
+              }
+            } catch (error) {
+              this.logger.error(
+                `Không thể lấy thông tin khách sạn ${hotelId}: ${error.message}`,
+              );
+            }
+          }
+
+          // Tạo thông tin phòng với tên khách sạn thay vì ID
           const roomInfo = rooms
-            .map(
-              (r) =>
-                `- ${r.name} tại ${r.hotel_id ? `Khách sạn ${r.hotel_id}` : 'Khách sạn Smart Hotel'}: sức chứa ${r.capacity} người, giá ${r.price_per_night?.toLocaleString()} VND/đêm`,
-            )
+            .map((r) => {
+              const hotelName = r.hotel_id
+                ? hotelNames.get(r.hotel_id) || `Khách sạn ${r.hotel_id}` // Sử dụng tên nếu có, nếu không thì dùng ID
+                : 'Khách sạn Smart Hotel';
+
+              return `- ${r.name} tại ${hotelName}: sức chứa ${r.capacity} người, giá ${r.price_per_night?.toLocaleString()} VND/đêm`;
+            })
             .join('\n');
 
-          return `Tôi đã tìm thấy các phòng loại ${roomType} sau:\n${roomInfo}`;
+          return `Tôi đã tìm thấy các phòng loại ${roomTypeFound} sau:\n${roomInfo}\n\nBạn có quan tâm đến phòng nào không?`;
+        } else {
+          return `Hiện tại chúng tôi không có phòng loại ${roomTypeFound} nào khả dụng. Bạn có thể quan tâm đến các loại phòng khác như Standard, Deluxe hoặc Suite không?`;
         }
+      }
+
+      // Xử lý trường hợp người dùng chỉ hỏi về "các loại phòng"
+      if (
+        userMessage.toLowerCase().includes('loại phòng') ||
+        userMessage.toLowerCase().includes('các phòng') ||
+        userMessage.toLowerCase().includes('phòng gì')
+      ) {
+        const roomTypes = Object.values(roomTypeKeywords).filter(
+          (value, index, self) => self.indexOf(value) === index,
+        );
+        return `Smart Hotel cung cấp các loại phòng sau:\n- ${roomTypes.join('\n- ')}\n\nBạn quan tâm đến loại phòng nào?`;
       }
 
       // Khách sạn theo khoảng giá

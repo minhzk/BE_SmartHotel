@@ -466,21 +466,64 @@ export class ChatbotService {
         return `Dưới đây là một số khách sạn ở ${city}:\n${hotelInfo}\n\nBạn muốn biết thêm thông tin về khách sạn nào không?`;
       }
 
-      // Khách sạn đánh giá cao - Cải tiến nhận diện
+      // Khách sạn đánh giá cao - Cải tiến nhận diện với chuẩn hóa chuỗi
+      // Chuẩn hóa chuỗi để tránh lỗi khi so sánh Unicode tiếng Việt
+      const normalizedUserMsg = userMessage
+        .normalize('NFC') // Chuẩn hóa Unicode
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, ' '); // Chuẩn hóa khoảng trắng
+
+      // Tạo các pattern và chuỗi để kiểm tra
+      const hotelKeywords = ['khách sạn', 'ks', 'hotel'];
+      const ratingKeywords = [
+        'tốt',
+        'cao',
+        'đánh giá cao',
+        'chất lượng',
+        '5 sao',
+        'nổi tiếng',
+        'đẹp',
+        'sang trọng',
+        'top',
+      ];
+
+      // Kiểm tra từng pattern riêng biệt
+      const hasHotelKeyword = hotelKeywords.some((keyword) =>
+        normalizedUserMsg.includes(keyword),
+      );
+      const hasRatingKeyword = ratingKeywords.some((keyword) =>
+        normalizedUserMsg.includes(keyword),
+      );
+
+      // Log kết quả kiểm tra trung gian
+      this.logger.log(`normalizedUserMsg: "${normalizedUserMsg}"`);
+      this.logger.log(
+        `hasHotelKeyword: ${hasHotelKeyword}, hasRatingKeyword: ${hasRatingKeyword}`,
+      );
+
+      // Sử dụng biểu thức chính quy với cờ u (unicode)
       const bestHotelPattern =
-        /(khách sạn|ks).*?(tốt|cao|đánh giá|chất lượng|sao|5 sao|nổi tiếng|nổi bật|sang|sang trọng|luxury|nổi tiếng|danh tiếng|top)/i;
+        /(khách sạn|ks).*?(tốt|cao|đánh giá|chất lượng|sao|nổi tiếng|nổi bật|sang|sang trọng|top|đẹp)/iu;
+      const isPatternMatch = bestHotelPattern.test(normalizedUserMsg);
+
       if (
-        bestHotelPattern.test(userMessage) ||
-        userMessage.toLowerCase().includes('khách sạn tốt') ||
-        userMessage.toLowerCase().includes('khách sạn đánh giá cao') ||
-        userMessage.toLowerCase().includes('khách sạn đẹp') ||
-        userMessage.toLowerCase().includes('khách sạn nổi tiếng') ||
+        isPatternMatch ||
+        (hasHotelKeyword && hasRatingKeyword) ||
+        // Giữ lại các điều kiện hiện có như một backup
+        normalizedUserMsg.includes('khách sạn tốt') ||
+        normalizedUserMsg.includes('khách sạn đánh giá cao') ||
+        normalizedUserMsg.includes('khách sạn đẹp') ||
+        normalizedUserMsg.includes('khách sạn nổi tiếng') ||
+        normalizedUserMsg.includes('khách sạn 5 sao') ||
+        normalizedUserMsg.includes('khách sạn sang') ||
+        // Vẫn giữ lại đoạn code kiểm tra originalMessage như một phương án dự phòng
         (originalMessage &&
           originalMessage.toLowerCase().includes('khách sạn') &&
           (originalMessage.toLowerCase().includes('đánh giá cao') ||
             originalMessage.toLowerCase().includes('tốt nhất')))
       ) {
-        this.logger.log(`Phát hiện yêu cầu về khách sạn đánh giá cao`);
+        this.logger.log(`✓ Phát hiện yêu cầu về khách sạn đánh giá cao`);
         const topHotels = await this.chatbotDataService.getTopRatedHotels();
         this.logger.log(`Tìm thấy ${topHotels.length} khách sạn đánh giá cao`);
 
@@ -611,16 +654,72 @@ export class ChatbotService {
         }
       }
 
-      // Xử lý trường hợp người dùng chỉ hỏi về "các loại phòng"
+      // Xử lý trường hợp người dùng hỏi về "các loại phòng" - sử dụng chuỗi đã chuẩn hóa
+      // Chuỗi đã được chuẩn hóa từ trước (từ phần xử lý khách sạn đánh giá cao)
+      // Nếu chưa có thì chuẩn hóa lại
+
+      // Các từ khóa và cụm từ liên quan đến câu hỏi về loại phòng
+      const roomPhrases = ['loại phòng', 'các phòng', 'phòng gì'];
+      const questionPhrases = [
+        'có',
+        'hiện có',
+        'cung cấp',
+        'cho biết',
+        'liệt kê',
+      ];
+
+      // Kiểm tra từng điều kiện riêng biệt
+      const hasRoomTypeKeyword = roomPhrases.some((phrase) =>
+        normalizedUserMsg.includes(phrase),
+      );
+      const hasQuestionKeyword = questionPhrases.some((phrase) =>
+        normalizedUserMsg.includes(phrase),
+      );
+
+      // Kiểm tra bằng regex linh hoạt
+      const roomTypesQuestionPattern =
+        /(?:có|cho\s+biết|liệt\s+kê|kể|nêu|hiển\s+thị)?\s*(?:các|những)?\s*(?:loại|kiểu|dạng|hạng)?\s*phòng\s*(?:gì|nào|như\s+thế\s+nào|ra\s+sao|ở\s+đây|của\s+(?:smart\s+hotel|khách\s+sạn))?/i;
+
+      const isPatternRoomTypeMatch = roomTypesQuestionPattern.test(normalizedUserMsg);
+
+      this.logger.log(`Kiểm tra câu hỏi về loại phòng: "${normalizedUserMsg}"`);
+      this.logger.log(
+        `hasRoomTypeKeyword: ${hasRoomTypeKeyword}, hasQuestionKeyword: ${hasQuestionKeyword}, isPatternMatch: ${isPatternMatch}`,
+      );
+
       if (
-        userMessage.toLowerCase().includes('loại phòng') ||
-        userMessage.toLowerCase().includes('các phòng') ||
-        userMessage.toLowerCase().includes('phòng gì')
+        isPatternRoomTypeMatch ||
+        (hasRoomTypeKeyword && hasQuestionKeyword) ||
+        // Hardcode các trường hợp đặc biệt để đảm bảo bắt được
+        normalizedUserMsg === 'có các loại phòng nào' ||
+        normalizedUserMsg === 'có những loại phòng nào' ||
+        normalizedUserMsg === 'có các phòng gì' ||
+        normalizedUserMsg === 'có phòng gì' ||
+        normalizedUserMsg.includes('các loại phòng') ||
+        normalizedUserMsg.includes('loại phòng nào')
       ) {
+        this.logger.log(
+          `✓ Phát hiện câu hỏi về danh sách loại phòng: "${userMessage}"`,
+        );
+
         const roomTypes = Object.values(roomTypeKeywords).filter(
           (value, index, self) => self.indexOf(value) === index,
         );
-        return `Smart Hotel cung cấp các loại phòng sau:\n- ${roomTypes.join('\n- ')}\n\nBạn quan tâm đến loại phòng nào?`;
+
+        // Tạo phản hồi chi tiết hơn
+        let response = `Smart Hotel cung cấp các loại phòng sau:\n- ${roomTypes.join('\n- ')}\n\n`;
+
+        // Thêm mô tả tóm tắt cho các loại phòng phổ biến
+        response += `Một số thông tin về các loại phòng phổ biến:\n`;
+        response += `• Standard: Phòng tiêu chuẩn, trang bị cơ bản, giá cả hợp lý\n`;
+        response += `• Deluxe: Phòng cao cấp hơn, rộng rãi và tiện nghi hơn Standard\n`;
+        response += `• Suite: Phòng sang trọng với không gian riêng biệt gồm phòng khách và phòng ngủ\n`;
+        response += `• Family: Phòng thiết kế dành cho gia đình, thường có nhiều giường và không gian rộng rãi\n`;
+        response += `• Executive: Phòng hạng sang với dịch vụ đặc biệt và quyền lợi thêm\n\n`;
+
+        response += `Bạn muốn tìm hiểu thêm về loại phòng nào hoặc có nhu cầu đặc biệt nào không?`;
+
+        return response;
       }
 
       // Khách sạn theo khoảng giá

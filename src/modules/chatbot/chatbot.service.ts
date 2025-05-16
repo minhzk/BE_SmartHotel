@@ -408,44 +408,88 @@ export class ChatbotService {
       let city = null;
       let hotels = [];
 
+      // Danh sách các thành phố được hỗ trợ để đối chiếu kết quả
+      const supportedCities = [
+        'hồ chí minh',
+        'hà nội',
+        'đà nẵng',
+        'nha trang',
+        'phú quốc',
+        'hội an',
+        'huế',
+        'đà lạt',
+        'vũng tàu',
+        'cần thơ',
+        'sapa',
+        'quy nhơn',
+        'hạ long',
+        'phan thiết',
+      ];
+
       // Danh sách các biểu thức chính quy để tìm thành phố
       const cityPatterns = [
-        // Tìm trong cấu trúc "khách sạn ở/tại <thành phố>"
-        /khách sạn (?:ở|tại|ở tại|của|trong) ([\p{L}\s]+)/iu,
+        // Pattern 1: Bắt chính xác tên thành phố từ danh sách đã biết
+        new RegExp(`\\b(${supportedCities.join('|')})\\b`, 'iu'),
 
-        // Bắt trường hợp người dùng chỉ hỏi về một thành phố cụ thể
-        /(hồ chí minh|hà nội|đà nẵng|nha trang|phú quốc|hội an|huế|đà lạt|vũng tàu|cần thơ|sapa|quy nhơn|hạ long|phan thiết)/iu,
+        // Pattern 2: Bắt các biến thể viết tắt của Hồ Chí Minh
+        /\b(tp\s*\.?\s*hồ chí minh|tp\s*\.?\s*hcm|hcm|sài gòn)\b/iu,
 
-        // Bắt các biến thể viết tắt của Hồ Chí Minh
-        /(tp\s*\.?\s*hồ chí minh|tp\s*\.?\s*hcm|hcm|sài gòn)/iu,
+        // Pattern 3: Tìm trong cấu trúc "khách sạn ở/tại <thành phố>"
+        /khách sạn (?:ở|tại|ở tại|của|trong) ([\p{L}\s]+?)(?:[,.;:!?]|$|\s(?:và|hoặc|như|là))/iu,
       ];
 
       // Tìm trong cả userMessage và originalMessage
-      const searchTexts = userMessage;
+      const searchTexts = [userMessage, originalMessage].filter((text) => text);
 
       // Thử tìm thành phố trong các message
       for (const text of searchTexts) {
         if (city) break; // Nếu đã tìm thấy rồi thì dừng
 
-        for (const pattern of cityPatterns) {
+        for (let i = 0; i < cityPatterns.length; i++) {
+          const pattern = cityPatterns[i];
           const match = text.match(pattern);
-          if (match) {
-            city = match[1].trim();
-            this.logger.log(`Tìm thấy thành phố: "${city}" trong văn bản`);
 
-            // Chuẩn hóa tên thành phố
-            const cityLower = city.toLowerCase();
-            if (
-              cityLower === 'hcm' ||
-              cityLower === 'tp.hcm' ||
-              cityLower === 'tp hcm' ||
-              cityLower === 'tphcm' ||
-              cityLower === 'sài gòn'
-            ) {
+          if (match) {
+            // Xử lý dựa trên loại pattern
+            if (i === 0) {
+              // Pattern đầu tiên: Lấy chính xác thành phố từ danh sách đã biết
+              city = match[1].trim();
+              this.logger.log(
+                `Tìm thấy thành phố chính xác: "${city}" trong văn bản (pattern ${i + 1})`,
+              );
+            } else if (i === 1) {
+              // Pattern thứ hai: Chuẩn hóa biến thể của HCM
               city = 'hồ chí minh';
-              this.logger.log(`Đã chuẩn hóa thành: hồ chí minh`);
+              this.logger.log(
+                `Tìm thấy biến thể HCM: "${match[1]}", chuẩn hóa thành "${city}"`,
+              );
+            } else {
+              // Pattern thứ ba: Trích xuất và kiểm tra khớp với thành phố đã biết
+              const extractedCity = match[1].trim();
+
+              // Tìm thành phố đã biết gần giống nhất
+              const matchedCity = supportedCities.find(
+                (c) =>
+                  extractedCity.toLowerCase() === c ||
+                  extractedCity.toLowerCase().includes(c) ||
+                  c.includes(extractedCity.toLowerCase()),
+              );
+
+              if (matchedCity) {
+                city = matchedCity; // Sử dụng tên chính xác từ danh sách
+                this.logger.log(
+                  `Tìm thấy thành phố "${city}" (từ "${extractedCity}")`,
+                );
+              } else {
+                // Nếu không khớp với thành phố đã biết, vẫn lấy tên để kiểm tra
+                city = extractedCity;
+                this.logger.log(
+                  `Tìm thấy thành phố không có trong danh sách: "${city}"`,
+                );
+              }
             }
 
+            // Sau khi xác định được thành phố, tìm khách sạn
             hotels = await this.chatbotDataService.getHotelsByCity(city);
             this.logger.log(`Tìm thấy ${hotels.length} khách sạn ở ${city}`);
             break;
@@ -680,7 +724,8 @@ export class ChatbotService {
       const roomTypesQuestionPattern =
         /(?:có|cho\s+biết|liệt\s+kê|kể|nêu|hiển\s+thị)?\s*(?:các|những)?\s*(?:loại|kiểu|dạng|hạng)?\s*phòng\s*(?:gì|nào|như\s+thế\s+nào|ra\s+sao|ở\s+đây|của\s+(?:smart\s+hotel|khách\s+sạn))?/i;
 
-      const isPatternRoomTypeMatch = roomTypesQuestionPattern.test(normalizedUserMsg);
+      const isPatternRoomTypeMatch =
+        roomTypesQuestionPattern.test(normalizedUserMsg);
 
       this.logger.log(`Kiểm tra câu hỏi về loại phòng: "${normalizedUserMsg}"`);
       this.logger.log(

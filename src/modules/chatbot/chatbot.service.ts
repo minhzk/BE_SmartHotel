@@ -874,9 +874,9 @@ export class ChatbotService {
 
       // Tìm kiếm thông tin tiện ích
       if (
-        userMessage.toLowerCase().includes('tiện ích') ||
-        userMessage.toLowerCase().includes('dịch vụ') ||
-        userMessage.toLowerCase().includes('amenities')
+        normalizedUserMsg.toLowerCase().includes('tiện ích') ||
+        normalizedUserMsg.toLowerCase().includes('dịch vụ') ||
+        normalizedUserMsg.toLowerCase().includes('amenities')
       ) {
         // Nếu đang nói về một khách sạn cụ thể
         if (context?.hotel_id) {
@@ -894,15 +894,15 @@ export class ChatbotService {
 
       // Trả lời các câu hỏi về chính sách đặt phòng, hủy phòng
       if (
-        userMessage.toLowerCase().includes('chính sách') ||
-        userMessage.toLowerCase().includes('hủy phòng') ||
-        userMessage.toLowerCase().includes('hoàn tiền')
+        normalizedUserMsg.toLowerCase().includes('chính sách') ||
+        normalizedUserMsg.toLowerCase().includes('hủy phòng') ||
+        normalizedUserMsg.toLowerCase().includes('hoàn tiền')
       ) {
         return `Chính sách đặt phòng và hủy phòng chung của chúng tôi:\n\n- Đặt cọc: 30% giá trị đặt phòng để đảm bảo việc đặt phòng\n- Hủy miễn phí: Trước 2 ngày so với ngày nhận phòng\n- Hoàn tiền: 100% tiền đặt cọc nếu hủy trong thời hạn miễn phí\n- Check-in: 14:00, Check-out: 12:00\n\nMỗi khách sạn có thể có chính sách riêng. Vui lòng kiểm tra trang chi tiết khách sạn để biết thêm thông tin.`;
       }
 
       // Nếu user đang hỏi về danh sách khách sạn nói chung
-      if (this.needsHotelData(userMessage)) {
+      if (this.needsHotelData(normalizedUserMsg)) {
         const hotels = await this.chatbotDataService.getTopRatedHotels(5);
 
         if (hotels.length > 0) {

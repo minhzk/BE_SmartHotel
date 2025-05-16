@@ -8,12 +8,15 @@ import aqp from 'api-query-params';
 import mongoose from 'mongoose';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { ConfigService } from '@nestjs/config';
+import { Room } from '../rooms/schemas/room.schema';
 
 @Injectable()
 export class HotelsService {
   constructor(
     @InjectModel(Hotel.name)
     private hotelModel: Model<Hotel>,
+    @InjectModel(Room.name)
+    private roomModel: Model<Room>,
     private readonly configService: ConfigService,
   ) {}
 
@@ -27,22 +30,31 @@ export class HotelsService {
     if (filter.current) delete filter.current;
     if (filter.pageSize) delete filter.pageSize;
 
+    // Handle combined search for both name and city
+    if (filter.search) {
+      const searchRegex = { $regex: filter.search, $options: 'i' };
+      filter.$or = [
+        { name: searchRegex },
+        { city: searchRegex }
+      ];
+      delete filter.search;
+    }
+
     // Handle search by name
     if (filter.name) {
       filter.name = { $regex: filter.name, $options: 'i' }; // Case-insensitive search
     }
 
-    // Handle search by city - Đơn giản hóa
+    // Handle search by city
     if (filter.city) {
       // Bỏ qua logic mapping phức tạp, chỉ tìm kiếm không phân biệt HOA/thường
       filter.city = { $regex: filter.city, $options: 'i' };
     }
 
-    // Handle ratings filter - Sửa lại để lấy khách sạn có rating >= giá trị đã chọn
+    // Handle ratings filter
     if (filter.rating) {
       const rating = Number(filter.rating);
       if (!isNaN(rating) && rating >= 1 && rating <= 5) {
-        // Thay đổi logic: lấy khách sạn có rating lớn hơn hoặc bằng giá trị đã chọn
         filter.rating = { $gte: Math.floor(rating) };
       } else {
         delete filter.rating;
@@ -50,42 +62,75 @@ export class HotelsService {
     }
 
     // Xử lý tìm kiếm theo khoảng giá
-
-    // Khi người dùng tìm với min_price, họ muốn tìm khách sạn có giá tối thiểu >= giá họ nhập
     if (filter.min_price) {
       const minPrice = Number(filter.min_price);
       if (!isNaN(minPrice)) {
-        // Tìm khách sạn có min_price lớn hơn hoặc bằng giá người dùng nhập
         filter.min_price = { $gte: minPrice };
       } else {
         delete filter.min_price;
       }
     }
 
-    // Khi người dùng tìm với max_price, họ muốn tìm khách sạn có giá khởi điểm <= giá họ nhập
     if (filter.max_price) {
       const maxPrice = Number(filter.max_price);
       if (!isNaN(maxPrice)) {
-        // Điều chỉnh logic: Tìm khách sạn có min_price <= maxPrice người dùng nhập
-        // Nghĩa là: tìm khách sạn có giá khởi điểm nằm trong ngân sách người dùng
         filter.min_price = { ...filter.min_price, $lte: maxPrice };
-
-        // Xóa max_price khỏi filter vì đã chuyển điều kiện sang min_price
         delete filter.max_price;
       } else {
         delete filter.max_price;
       }
     }
 
-    // Handle capacity filtering - Chuyển đổi từ tham số capacity sang lọc theo trường max_capacity trong DB
+    // Handle capacity filtering
     if (filter.capacity) {
       const capacity = Number(filter.capacity);
       if (!isNaN(capacity) && capacity > 0) {
-        // Tìm khách sạn có sức chứa tối đa (max_capacity) >= số người yêu cầu
         filter.max_capacity = { $gte: capacity };
       }
-      // Luôn xóa trường capacity khỏi filter vì trong schema chỉ có trường max_capacity
       delete filter.capacity;
+    }
+
+    // Xử lý tìm kiếm theo số người lớn và trẻ em
+    const adultsCount = filter.adults ? Number(filter.adults) : 0;
+    const childrenCount = filter.children ? Number(filter.children) : 0;
+
+    // Xóa các trường này khỏi filter vì chúng ta sẽ xử lý riêng
+    delete filter.adults;
+    delete filter.children;
+
+    // Nếu có yêu cầu về số người lớn hoặc trẻ em
+    if (adultsCount > 0 || childrenCount > 0) {
+      // Tạo query để tìm các phòng thỏa mãn điều kiện
+      const roomFilter: any = {};
+
+      if (adultsCount > 0) {
+        roomFilter.max_adults = { $gte: adultsCount };
+      }
+
+      if (childrenCount > 0) {
+        roomFilter.max_children = { $gte: childrenCount };
+      }
+
+      // Tìm tất cả các phòng thỏa mãn điều kiện
+      const suitableRooms = await this.roomModel
+        .find(roomFilter)
+        .distinct('hotel_id');
+
+      // Chỉ lấy khách sạn có phòng phù hợp
+      if (suitableRooms.length > 0) {
+        filter._id = { $in: suitableRooms };
+      } else {
+        // Nếu không có phòng nào phù hợp, trả về kết quả rỗng
+        return {
+          meta: {
+            current: current || 1,
+            pageSize: pageSize || 10,
+            pages: 0,
+            total: 0,
+          },
+          results: [],
+        };
+      }
     }
 
     if (!current) current = 1;

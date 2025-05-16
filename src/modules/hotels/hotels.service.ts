@@ -9,6 +9,10 @@ import mongoose from 'mongoose';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { ConfigService } from '@nestjs/config';
 import { Room } from '../rooms/schemas/room.schema';
+import {
+  RoomAvailability,
+  RoomStatus,
+} from '../room-availability/schemas/room-availability.schema';
 
 @Injectable()
 export class HotelsService {
@@ -17,6 +21,8 @@ export class HotelsService {
     private hotelModel: Model<Hotel>,
     @InjectModel(Room.name)
     private roomModel: Model<Room>,
+    @InjectModel(RoomAvailability.name)
+    private roomAvailabilityModel: Model<RoomAvailability>,
     private readonly configService: ConfigService,
   ) {}
 
@@ -33,10 +39,7 @@ export class HotelsService {
     // Handle combined search for both name and city
     if (filter.search) {
       const searchRegex = { $regex: filter.search, $options: 'i' };
-      filter.$or = [
-        { name: searchRegex },
-        { city: searchRegex }
-      ];
+      filter.$or = [{ name: searchRegex }, { city: searchRegex }];
       delete filter.search;
     }
 
@@ -61,7 +64,7 @@ export class HotelsService {
       }
     }
 
-    // Xử lý tìm kiếm theo khoảng giá
+    // Handle price range filter
     if (filter.min_price) {
       const minPrice = Number(filter.min_price);
       if (!isNaN(minPrice)) {
@@ -90,7 +93,7 @@ export class HotelsService {
       delete filter.capacity;
     }
 
-    // Xử lý tìm kiếm theo số người lớn và trẻ em
+    // Handle adults and children count
     const adultsCount = filter.adults ? Number(filter.adults) : 0;
     const childrenCount = filter.children ? Number(filter.children) : 0;
 
@@ -98,29 +101,88 @@ export class HotelsService {
     delete filter.adults;
     delete filter.children;
 
-    // Nếu có yêu cầu về số người lớn hoặc trẻ em
+    // Handle check-in and check-out dates
+    const checkIn = filter.check_in ? new Date(filter.check_in) : null;
+    const checkOut = filter.check_out ? new Date(filter.check_out) : null;
+
+    delete filter.check_in;
+    delete filter.check_out;
+
+    // Biến để kiểm soát liệu có cần áp dụng bộ lọc hotel_id hay không
+    let hasSpecialFilters = false;
+    let compatibleHotelIds: string[] = [];
+
+    // Trường hợp 1: Có yêu cầu tìm theo số người (adults/children)
     if (adultsCount > 0 || childrenCount > 0) {
-      // Tạo query để tìm các phòng thỏa mãn điều kiện
-      const roomFilter: any = {};
+      hasSpecialFilters = true;
+      const roomQueryForPeople: any = {
+        is_active: true,
+        is_bookable: true,
+      };
 
       if (adultsCount > 0) {
-        roomFilter.max_adults = { $gte: adultsCount };
+        roomQueryForPeople.max_adults = { $gte: adultsCount };
       }
 
       if (childrenCount > 0) {
-        roomFilter.max_children = { $gte: childrenCount };
+        roomQueryForPeople.max_children = { $gte: childrenCount };
       }
 
-      // Tìm tất cả các phòng thỏa mãn điều kiện
-      const suitableRooms = await this.roomModel
-        .find(roomFilter)
-        .distinct('hotel_id');
+      const compatibleRooms = await this.roomModel.find(roomQueryForPeople);
 
-      // Chỉ lấy khách sạn có phòng phù hợp
-      if (suitableRooms.length > 0) {
-        filter._id = { $in: suitableRooms };
+      // Lấy danh sách khách sạn có phòng phù hợp với số người
+      const peopleFilteredHotelIds = [
+        ...new Set(compatibleRooms.map((room) => room.hotel_id.toString())),
+      ];
+
+      compatibleHotelIds = peopleFilteredHotelIds;
+    }
+
+    // Trường hợp 2: Có yêu cầu tìm theo ngày check-in/check-out
+    if (checkIn && checkOut && checkIn < checkOut) {
+      hasSpecialFilters = true;
+      const unavailableRoomIds = await this.findUnavailableRooms(
+        checkIn,
+        checkOut,
+      );
+
+      // Tìm các phòng còn trống trong khoảng thời gian này
+      const roomQueryForDates: any = {
+        is_active: true,
+        is_bookable: true,
+      };
+
+      // Nếu có phòng không khả dụng, loại trừ chúng khỏi kết quả
+      if (unavailableRoomIds.length > 0) {
+        roomQueryForDates._id = { $nin: unavailableRoomIds };
+      }
+
+      const availableRooms = await this.roomModel.find(roomQueryForDates);
+
+      // Lấy danh sách khách sạn có phòng trống
+      const dateFilteredHotelIds = [
+        ...new Set(availableRooms.map((room) => room.hotel_id.toString())),
+      ];
+
+      if (compatibleHotelIds.length > 0) {
+        // Nếu đã có lọc theo số người, lấy giao của hai danh sách
+        // (khách sạn vừa có phòng trống, vừa đáp ứng số người)
+        compatibleHotelIds = compatibleHotelIds.filter((id) =>
+          dateFilteredHotelIds.includes(id),
+        );
       } else {
-        // Nếu không có phòng nào phù hợp, trả về kết quả rỗng
+        // Nếu chưa có lọc nào khác, sử dụng kết quả lọc theo ngày
+        compatibleHotelIds = dateFilteredHotelIds;
+      }
+    }
+
+    // Áp dụng bộ lọc khách sạn nếu có yêu cầu đặc biệt
+    if (hasSpecialFilters) {
+      if (compatibleHotelIds.length > 0) {
+        // Chỉ lấy các khách sạn thỏa mãn điều kiện
+        filter._id = { $in: compatibleHotelIds };
+      } else {
+        // Trả về kết quả rỗng nếu không có khách sạn nào thỏa mãn
         return {
           meta: {
             current: current || 1,
@@ -157,6 +219,23 @@ export class HotelsService {
     };
   }
 
+  private async findUnavailableRooms(
+    checkIn: Date,
+    checkOut: Date,
+  ): Promise<string[]> {
+    const unavailableRoomAvailabilities = await this.roomAvailabilityModel.find(
+      {
+        $and: [
+          { start_date: { $lte: checkOut } },
+          { end_date: { $gte: checkIn } },
+          { status: { $ne: RoomStatus.AVAILABLE } },
+        ],
+      },
+    );
+
+    return unavailableRoomAvailabilities.map((ra) => ra.room_id);
+  }
+
   async findOne(id: string) {
     if (!mongoose.isValidObjectId(id)) {
       throw new BadRequestException('Invalid hotel ID');
@@ -175,7 +254,7 @@ export class HotelsService {
       throw new BadRequestException('Invalid hotel ID');
     }
 
-    console.log('Received images:', updateHotelDto.images); // Log để kiểm tra
+    console.log('Received images:', updateHotelDto.images);
 
     const hotel = await this.hotelModel.findByIdAndUpdate(id, updateHotelDto, {
       new: true,

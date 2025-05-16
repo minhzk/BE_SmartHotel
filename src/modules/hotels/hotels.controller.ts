@@ -39,10 +39,9 @@ export class HotelsController {
     @Query('capacity') capacity: string,
     @Query('adults') adults: string,
     @Query('children') children: string,
+    @Query('check_in') checkIn: string,
+    @Query('check_out') checkOut: string,
   ) {
-    console.log('API called: GET /hotels with params:', { 
-      search, name, city, adults, children 
-    });
     return this.hotelsService.findAll(query, +current, +pageSize);
   }
 

@@ -404,6 +404,13 @@ export class ChatbotService {
         this.logger.log(`Original user message: "${userMessage}"`);
       }
 
+      // Chuẩn hóa chuỗi để tránh lỗi khi so sánh Unicode tiếng Việt
+      const normalizedUserMsg = userMessage
+        .normalize('NFC') // Chuẩn hóa Unicode
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, ' '); // Chuẩn hóa khoảng trắng
+
       // Tìm kiếm thành phố trong cả userMessage và originalMessage
       let city = null;
       let hotels = [];
@@ -439,7 +446,9 @@ export class ChatbotService {
       ];
 
       // Tìm trong cả userMessage và originalMessage
-      const searchTexts = [userMessage, originalMessage].filter((text) => text);
+      const searchTexts = [normalizedUserMsg, originalMessage].filter(
+        (text) => text,
+      );
 
       // Thử tìm thành phố trong các message
       for (const text of searchTexts) {
@@ -511,13 +520,6 @@ export class ChatbotService {
       }
 
       // Khách sạn đánh giá cao - Cải tiến nhận diện với chuẩn hóa chuỗi
-      // Chuẩn hóa chuỗi để tránh lỗi khi so sánh Unicode tiếng Việt
-      const normalizedUserMsg = userMessage
-        .normalize('NFC') // Chuẩn hóa Unicode
-        .toLowerCase()
-        .trim()
-        .replace(/\s+/g, ' '); // Chuẩn hóa khoảng trắng
-
       // Tạo các pattern và chuỗi để kiểm tra
       const hotelKeywords = ['khách sạn', 'ks', 'hotel'];
       const ratingKeywords = [
@@ -767,19 +769,50 @@ export class ChatbotService {
         return response;
       }
 
-      // Khách sạn theo khoảng giá
-      const priceMatch = userMessage.match(
-        /khách sạn (?:có )?giá (?:từ|khoảng) (\d+)(?:\s*(?:đến|tới|-)?\s*(\d+))?/i,
-      );
+      // Khách sạn theo khoảng giá - Tìm kiếm trong cả userMessage và originalMessage
+      let priceMatch = null;
+
+      // Tìm kiếm trong cả hai nguồn tin nhắn
+      for (const text of searchTexts) {
+        const match = text.match(
+          /khách sạn (?:có )?giá (?:từ|khoảng) (\d+)(?:\s*(?:đến|tới|-)?\s*(\d+))?/i,
+        );
+
+        if (match) {
+          priceMatch = match;
+          this.logger.log(
+            `Tìm thấy thông tin khoảng giá trong: "${text.substring(0, 50)}..."`,
+          );
+          break;
+        }
+      }
       if (priceMatch) {
-        let minPrice = parseInt(priceMatch[1], 10) * 1000; // Giả sử giá nhập vào theo nghìn đồng
-        let maxPrice = priceMatch[2]
-          ? parseInt(priceMatch[2], 10) * 1000
-          : minPrice * 3;
+        // Thông minh hơn khi xử lý giá - tự động phát hiện đơn vị
+        let minPrice = parseInt(priceMatch[1], 10);
+        let maxPrice = priceMatch[2] ? parseInt(priceMatch[2], 10) : null;
+
+        // Kiểm tra nếu giá nhỏ (người dùng nhập theo đơn vị nghìn đồng)
+        if (minPrice < 10000) {
+          minPrice *= 1000; // Chuyển đơn vị nghìn đồng sang đồng
+          if (maxPrice && maxPrice < 10000) {
+            maxPrice *= 1000; // Chuyển đơn vị nghìn đồng sang đồng
+          }
+        }
+
+        // Nếu không có giá tối đa, thiết lập giá tối đa là gấp 3 lần giá tối thiểu
+        if (!maxPrice) maxPrice = minPrice * 3;
+
+        this.logger.log(
+          `✓ Phát hiện yêu cầu tìm khách sạn theo khoảng giá: ${minPrice.toLocaleString()} - ${maxPrice.toLocaleString()} VND`,
+        );
 
         const hotels = await this.chatbotDataService.getHotelsByPriceRange(
           minPrice,
           maxPrice,
+        );
+
+        this.logger.log(
+          `Tìm thấy ${hotels.length} khách sạn trong khoảng giá ${minPrice.toLocaleString()} - ${maxPrice.toLocaleString()} VND`,
         );
 
         if (hotels.length > 0) {

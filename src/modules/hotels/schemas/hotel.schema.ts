@@ -86,6 +86,9 @@ export class Hotel {
 
   @Prop({ type: String, enum: HotelSentimentLabel })
   sentiment_label: HotelSentimentLabel;
+
+  @Prop()
+  total_reviews: number;
 }
 
 export const HotelSchema = SchemaFactory.createForClass(Hotel);

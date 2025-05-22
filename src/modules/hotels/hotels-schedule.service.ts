@@ -18,7 +18,7 @@ export class HotelsScheduleService {
   /**
    * Task chạy mỗi ngày lúc 0h để cập nhật sentiment_score và sentiment_label cho khách sạn
    */
-  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  @Cron(CronExpression.EVERY_DAY_AT_2PM)
   async updateHotelsSentiment() {
     this.logger.log('Đang cập nhật sentiment cho các khách sạn...');
     try {
@@ -30,6 +30,9 @@ export class HotelsScheduleService {
           sentiment: { $ne: null },
         });
         if (reviews.length === 0) continue;
+
+        // Tổng số comment
+        const totalReviews = reviews.length;
 
         // Tính điểm sentiment trung bình (1-5) và chuyển sang thang 1-10
         const avgSentimentRaw =
@@ -51,7 +54,13 @@ export class HotelsScheduleService {
         // Cập nhật vào hotel
         await this.hotelModel.updateOne(
           { _id: hotel._id },
-          { $set: { sentiment_score: avgSentiment, sentiment_label: label } },
+          {
+            $set: {
+              sentiment_score: avgSentiment,
+              sentiment_label: label,
+              total_reviews: totalReviews,
+            },
+          },
         );
       }
       this.logger.log('Đã cập nhật sentiment cho tất cả khách sạn.');

@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
+import { HotelSentimentLabel } from '../../reviews/schemas/review.schema';
 
 export type HotelDocument = HydratedDocument<Hotel>;
 
@@ -79,6 +80,12 @@ export class Hotel {
 
   @Prop()
   max_capacity: number;
+
+  @Prop()
+  sentiment_score: number;
+
+  @Prop({ type: String, enum: HotelSentimentLabel })
+  sentiment_label: HotelSentimentLabel;
 }
 
 export const HotelSchema = SchemaFactory.createForClass(Hotel);

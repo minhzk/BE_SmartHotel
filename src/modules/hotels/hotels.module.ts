@@ -8,7 +8,9 @@ import {
   RoomAvailability,
   RoomAvailabilitySchema,
 } from '../room-availability/schemas/room-availability.schema';
+import { Review, ReviewSchema } from '../reviews/schemas/review.schema';
 import { ConfigModule } from '@nestjs/config';
+import { HotelsScheduleService } from './hotels-schedule.service';
 
 @Module({
   imports: [
@@ -16,11 +18,12 @@ import { ConfigModule } from '@nestjs/config';
       { name: Hotel.name, schema: HotelSchema },
       { name: Room.name, schema: RoomSchema },
       { name: RoomAvailability.name, schema: RoomAvailabilitySchema },
+      { name: Review.name, schema: ReviewSchema },
     ]),
     ConfigModule,
   ],
   controllers: [HotelsController],
-  providers: [HotelsService],
+  providers: [HotelsService, HotelsScheduleService],
   exports: [HotelsService],
 })
 export class HotelsModule {}

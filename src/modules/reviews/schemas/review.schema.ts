@@ -4,12 +4,25 @@ import mongoose from 'mongoose';
 
 export type ReviewDocument = HydratedDocument<Review>;
 
+// Label cho sentiment của từng review (1-5)
 export enum SentimentLabel {
-  NEGATIVE = 'Tiêu cực',
-  NEUTRAL = 'Trung lập',
-  SATISFIED = 'Hài lòng',
-  EXCELLENT = 'Tuyệt vời',
-  PERFECT = 'Hoàn hảo',
+  VERY_NEGATIVE = 'Rất tiêu cực', // 1
+  NEGATIVE = 'Tiêu cực', // 2
+  NEUTRAL = 'Trung lập', // 3
+  POSITIVE = 'Tích cực', // 4
+  VERY_POSITIVE = 'Rất tích cực', // 5
+}
+
+// Label cho sentiment trung bình của khách sạn (1-10)
+export enum HotelSentimentLabel {
+  VERY_BAD = 'Rất tệ', // 1-2
+  BAD = 'Tệ', // 3-4
+  AVERAGE = 'Trung bình', // 5
+  SATISFIED = 'Hài lòng', // 6
+  VERY_GOOD = 'Rất tốt', // 7
+  EXCELLENT = 'Xuất sắc', // 8
+  WONDERFUL = 'Tuyệt vời', // 9
+  PERFECT = 'Hoàn hảo', // 10
 }
 
 class Response {

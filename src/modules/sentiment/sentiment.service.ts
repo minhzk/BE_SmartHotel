@@ -24,52 +24,58 @@ export class SentimentService {
     label: SentimentLabel;
     keywords: string[];
   }> {
-    // Measure processing time
     const startTime = Date.now();
 
     try {
-      // In a real application, you would call an external sentiment analysis API
-      // For demo purposes, we'll use a simple sentiment algorithm
+      // Lấy AI API URL từ biến môi trường
+      const aiApiUrl =
+        this.configService.get<string>('AI_API_URL') || 'http://127.0.0.1:8000';
+      const response = await axios.post(`${aiApiUrl}/analyze-single`, {
+        review_text: text,
+      });
 
-      // Example of calling an external AI service (commented out)
-      // const apiKey = this.configService.get<string>('SENTIMENT_API_KEY');
-      // const response = await axios.post('https://api.sentiment-analysis.example/analyze', {
-      //   text,
-      //   language: 'vi'
-      // }, {
-      //   headers: {
-      //     'Authorization': `Bearer ${apiKey}`
-      //   }
-      // });
-      //
-      // const score = response.data.score;
-      // const label = this.getSentimentLabel(score);
-      // const keywords = response.data.keywords || [];
+      const data = response.data;
 
-      // Simple simulation of sentiment analysis
-      const score = this.simulateSentimentAnalysis(text);
-      const label = this.getSentimentLabel(score);
-      const keywords = this.extractKeywords(text);
-      const confidence = 0.85;
+      // Map sentiment_label từ API về SentimentLabel enum
+      let label: SentimentLabel;
+      switch (data.sentiment_label) {
+        case 'very_negative':
+          label = SentimentLabel.VERY_NEGATIVE;
+          break;
+        case 'negative':
+          label = SentimentLabel.NEGATIVE;
+          break;
+        case 'neutral':
+          label = SentimentLabel.NEUTRAL;
+          break;
+        case 'positive':
+          label = SentimentLabel.POSITIVE;
+          break;
+        case 'very_positive':
+          label = SentimentLabel.VERY_POSITIVE;
+          break;
+        default:
+          label = SentimentLabel.NEUTRAL;
+      }
 
-      // Calculate processing time
-      const processingTime = Date.now() - startTime;
+      // Xử lý keywords từ processed_text (nếu cần)
+      const keywords = this.extractKeywords(data.processed_text);
 
-      // Save the sentiment analysis log
+      // Lưu log phân tích sentiment
       await this.saveSentimentLog({
         review_id: reviewId,
-        original_text: text,
-        processed_text: text,
-        sentiment_score: score,
+        original_text: data.review_text,
+        processed_text: data.processed_text,
+        sentiment_score: data.predicted_rating,
         sentiment_label: label,
-        confidence,
-        model_version: 'sentiment-vi-v1.0',
-        processing_time_ms: processingTime,
+        confidence: data.confidence,
+        model_version: data.model_version,
+        processing_time_ms: data.processing_time_ms ?? Date.now() - startTime,
         keywords,
       });
 
       return {
-        score,
+        score: data.predicted_rating,
         label,
         keywords,
       };
@@ -80,72 +86,6 @@ export class SentimentService {
       );
       throw error;
     }
-  }
-
-  private simulateSentimentAnalysis(text: string): number {
-    // This is a very simple sentiment simulation
-    // In a real app, use a proper NLP service
-    const positiveWords = [
-      'tuyệt vời',
-      'tốt',
-      'hài lòng',
-      'thích',
-      'sạch sẽ',
-      'tiện nghi',
-      'thân thiện',
-      'thoải mái',
-      'ngon',
-      'đẹp',
-    ];
-
-    const negativeWords = [
-      'tệ',
-      'kém',
-      'bẩn',
-      'không hài lòng',
-      'thất vọng',
-      'chật',
-      'ồn',
-      'đắt',
-      'chậm',
-      'xấu',
-    ];
-
-    // Count positive and negative words
-    let posCount = 0;
-    let negCount = 0;
-
-    // Convert to lowercase for word matching
-    const lowerText = text.toLowerCase();
-
-    positiveWords.forEach((word) => {
-      if (lowerText.includes(word)) posCount++;
-    });
-
-    negativeWords.forEach((word) => {
-      if (lowerText.includes(word)) negCount++;
-    });
-
-    // Calculate base score (0-10)
-    const textLength = text.split(' ').length;
-    let score = 5; // Neutral starting point
-
-    if (textLength > 0) {
-      // Adjust score based on positive vs negative words
-      const factor = 2.5 * ((posCount - negCount) / textLength);
-      score += factor;
-    }
-
-    // Ensure score is between 0 and 10
-    return Math.max(0, Math.min(10, score));
-  }
-
-  private getSentimentLabel(score: number): SentimentLabel {
-    if (score < 4.0) return SentimentLabel.NEGATIVE;
-    if (score < 6.5) return SentimentLabel.NEUTRAL;
-    if (score < 8.0) return SentimentLabel.SATISFIED;
-    if (score < 9.0) return SentimentLabel.EXCELLENT;
-    return SentimentLabel.PERFECT;
   }
 
   private extractKeywords(text: string): string[] {
@@ -170,7 +110,9 @@ export class SentimentService {
     });
 
     // Convert to array of [word, frequency] pairs and sort by frequency
-    const wordPairs = Object.entries(wordFrequency).sort((a, b) => (b[1] as number) - (a[1] as number));
+    const wordPairs = Object.entries(wordFrequency).sort(
+      (a, b) => (b[1] as number) - (a[1] as number),
+    );
 
     // Return top keywords (up to 5)
     return wordPairs.slice(0, 5).map((pair) => pair[0]);

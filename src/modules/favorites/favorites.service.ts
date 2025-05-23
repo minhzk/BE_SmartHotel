@@ -37,7 +37,7 @@ export class FavoritesService {
       .find({ user_id: userId })
       .populate(
         'hotel_id',
-        'name address city rating images min_price max_price amenities',
+        'name address city rating images min_price max_price amenities max_capacity sentiment_score sentiment_label total_reviews',
       )
       .exec();
   }

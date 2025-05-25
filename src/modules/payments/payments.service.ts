@@ -166,33 +166,6 @@ export class PaymentsService {
           $gte: new Date(startDate),
           $lte: new Date(endDate + 'T23:59:59.999Z'),
         };
-      } else {
-        // Nếu chỉ có năm và tháng (YYYY-MM)
-        if (/^\d{4}-\d{2}$/.test(filters.paymentDate)) {
-          const year = parseInt(filters.paymentDate.substring(0, 4));
-          const month = parseInt(filters.paymentDate.substring(5, 7)) - 1; // Tháng trong JS là 0-11
-
-          const startOfMonth = new Date(year, month, 1);
-          const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999);
-
-          customFilter.payment_date = {
-            // SỬA TỪ paymentDate THÀNH payment_date
-            $gte: startOfMonth,
-            $lte: endOfMonth,
-          };
-        }
-        // Nếu là ngày đầy đủ (YYYY-MM-DD)
-        else if (/^\d{4}-\d{2}-\d{2}$/.test(filters.paymentDate)) {
-          const startOfDay = new Date(filters.paymentDate);
-          const endOfDay = new Date(filters.paymentDate);
-          endOfDay.setHours(23, 59, 59, 999);
-
-          customFilter.payment_date = {
-            // SỬA TỪ paymentDate THÀNH payment_date
-            $gte: startOfDay,
-            $lte: endOfDay,
-          };
-        }
       }
     }
 

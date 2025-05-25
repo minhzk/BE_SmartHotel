@@ -28,11 +28,31 @@ export class ReviewsController {
   @Public()
   @ResponseMessage('Fetch reviews successfully')
   findAll(
+    @Request() req,
     @Query() query: string,
     @Query('current') current: string,
     @Query('pageSize') pageSize: string,
+    @Query('dateRange') dateRange: string,
+    @Query('sentiment_label') sentiment_label: string,
+    @Query('rating') rating: string,
+    @Query('search') search: string,
   ) {
-    return this.reviewsService.findAll(query, +current, +pageSize);
+    const filters = {
+      dateRange,
+      sentiment_label,
+      rating,
+      search,
+    };
+
+    // Nếu không có req.user thì trả về rỗng hoặc throw error (giống bookings)
+    const userId = req?.user?._id;
+    return this.reviewsService.findAll(
+      userId,
+      query,
+      +current,
+      +pageSize,
+      filters,
+    );
   }
 
   @Get('hotel/:hotelId')

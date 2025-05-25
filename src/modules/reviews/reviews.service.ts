@@ -81,30 +81,95 @@ export class ReviewsService {
     return review;
   }
 
-  async findAll(query: string, current: number, pageSize: number) {
-    const { filter, sort, projection, population } = aqp(query);
-    if (filter.current) delete filter.current;
-    if (filter.pageSize) delete filter.pageSize;
+  async findAll(
+    userId: string,
+    query: string,
+    current: number,
+    pageSize: number,
+    filters?: {
+      dateRange?: string;
+      sentiment_label?: string;
+      rating?: string;
+      search?: string;
+    },
+  ) {
+    const { filter, sort, population } = aqp(query);
 
-    if (!current) current = 1;
-    if (!pageSize) pageSize = 10;
+    // Xóa các query params đặc biệt từ filter
+    delete filter.current;
+    delete filter.pageSize;
+    delete filter.dateRange;
+    delete filter.search;
 
-    const totalItems = await this.reviewModel.countDocuments(filter);
-    const totalPages = Math.ceil(totalItems / pageSize);
-    const skip = (current - 1) * pageSize;
+    // Xây dựng bộ lọc từ các tham số
+    const customFilter: any = { ...filter };
 
-    const results = await this.reviewModel
-      .find(filter)
-      .limit(pageSize)
-      .skip(skip)
-      .sort(sort as any)
-      .populate(population || ['user_id', 'hotel_id'])
-      .select(projection as any);
+    // Nếu không phải admin thì chỉ xem review của mình
+    // (Nếu muốn lọc theo user_id, bổ sung logic kiểm tra quyền ở đây)
+
+    // Lọc theo khoảng thời gian tạo review
+    if (filters?.dateRange) {
+      if (filters.dateRange.includes(',') || filters.dateRange.includes('-')) {
+        let [startDate, endDate] = filters.dateRange.includes(',')
+          ? filters.dateRange.split(',')
+          : filters.dateRange.split('-');
+
+        startDate = startDate.trim();
+        endDate = endDate ? endDate.trim() : startDate;
+
+        customFilter.createdAt = {
+          $gte: new Date(startDate),
+          $lte: new Date(endDate),
+        };
+      }
+    }
+
+    // Lọc theo sentiment_label
+    if (filters?.sentiment_label) {
+      customFilter.sentiment_label = filters.sentiment_label;
+    }
+
+    // Lọc theo rating
+    if (filters?.rating) {
+      customFilter.rating = Number(filters.rating);
+    }
+
+    // Xử lý tìm kiếm theo text
+    if (filters?.search) {
+      const searchRegex = new RegExp(filters.search, 'i');
+      customFilter.$or = [
+        { review_text: searchRegex },
+      ];
+    }
+
+    // Đặt giá trị mặc định cho phân trang
+    const defaultPageSize = 10;
+    const defaultCurrent = 1;
+
+    const skip =
+      (current > 0 ? current - 1 : defaultCurrent - 1) *
+      (pageSize > 0 ? pageSize : defaultPageSize);
+    const limit = pageSize > 0 ? pageSize : defaultPageSize;
+
+    // Thực hiện truy vấn
+    const [results, totalItems] = await Promise.all([
+      this.reviewModel
+        .find(customFilter)
+        .skip(skip)
+        .limit(limit)
+        .sort(sort as any)
+        .populate(population)
+        .exec(),
+      this.reviewModel.countDocuments(customFilter),
+    ]);
+
+    // Tính toán thông tin phân trang
+    const totalPages = Math.ceil(totalItems / limit);
 
     return {
       meta: {
-        current,
-        pageSize,
+        current: current || defaultCurrent,
+        pageSize: limit,
         pages: totalPages,
         total: totalItems,
       },

@@ -9,6 +9,7 @@ export enum BookingStatus {
   CONFIRMED = 'confirmed',
   CANCELED = 'canceled',
   COMPLETED = 'completed',
+  EXPIRED = 'expired', // Thêm trạng thái hết hạn
 }
 
 export enum PaymentStatus {
@@ -17,6 +18,7 @@ export enum PaymentStatus {
   PARTIALLY_PAID = 'partially_paid',
   FAILED = 'failed',
   REFUNDED = 'refunded',
+  EXPIRED = 'expired', // Thêm trạng thái hết hạn thanh toán
 }
 
 export enum DepositStatus {

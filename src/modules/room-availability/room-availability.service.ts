@@ -283,10 +283,12 @@ export class RoomAvailabilityService {
     const start = dayjs.utc(startDate).startOf('day').toDate();
     const end = dayjs.utc(endDate).startOf('day').toDate();
 
-    // Kiểm tra xem có bản ghi nào với trạng thái BOOKED hoặc MAINTENANCE trong khoảng thời gian này không
+    // Kiểm tra xem có bản ghi nào với trạng thái BOOKED, RESERVED hoặc MAINTENANCE trong khoảng thời gian này không
     const unavailableRecords = await this.roomAvailabilityModel.find({
       room_id: roomId,
-      status: { $in: [RoomStatus.BOOKED, RoomStatus.MAINTENANCE] },
+      status: {
+        $in: [RoomStatus.BOOKED, RoomStatus.RESERVED, RoomStatus.MAINTENANCE],
+      },
       $or: [
         // Các trường hợp chồng chéo
         {
@@ -332,5 +334,71 @@ export class RoomAvailabilityService {
         },
       ],
     });
+  }
+
+  async autoCancelExpiredReservations() {
+    try {
+      // Tìm tất cả các reservation đã quá hạn (quá 2 giờ mà chưa thanh toán)
+      const expiredTime = dayjs().subtract(2, 'hour').toDate();
+
+      const expiredReservations = await this.roomAvailabilityModel.find({
+        status: RoomStatus.RESERVED,
+        createdAt: { $lte: expiredTime },
+      });
+
+      let canceledCount = 0;
+
+      for (const reservation of expiredReservations) {
+        // Cập nhật trạng thái về AVAILABLE
+        await this.roomAvailabilityModel.findByIdAndUpdate(reservation._id, {
+          status: RoomStatus.AVAILABLE,
+        });
+        canceledCount++;
+      }
+
+      return {
+        message: `Auto-canceled ${canceledCount} expired reservations`,
+        canceledCount,
+      };
+    } catch (error) {
+      throw new BadRequestException(
+        `Failed to auto-cancel expired reservations: ${error.message}`,
+      );
+    }
+  }
+
+  async updateRoomStatusAfterPayment(
+    roomId: string,
+    startDate: Date,
+    endDate: Date,
+    newStatus: RoomStatus,
+  ) {
+    // Tìm và cập nhật tất cả các bản ghi RESERVED thành BOOKED sau khi thanh toán
+    const updatedRecords = await this.roomAvailabilityModel.updateMany(
+      {
+        room_id: roomId,
+        status: RoomStatus.RESERVED,
+        $or: [
+          {
+            start_date: { $lte: startDate },
+            end_date: { $gte: startDate },
+          },
+          {
+            start_date: { $lte: endDate },
+            end_date: { $gte: endDate },
+          },
+          {
+            start_date: { $gte: startDate },
+            end_date: { $lte: endDate },
+          },
+        ],
+      },
+      { status: newStatus },
+    );
+
+    return {
+      message: `Updated ${updatedRecords.modifiedCount} room availability records`,
+      modifiedCount: updatedRecords.modifiedCount,
+    };
   }
 }

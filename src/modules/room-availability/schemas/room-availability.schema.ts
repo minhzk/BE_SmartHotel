@@ -5,6 +5,7 @@ export type RoomAvailabilityDocument = HydratedDocument<RoomAvailability>;
 
 export enum RoomStatus {
   AVAILABLE = 'available',
+  RESERVED = 'reserved', // Đã đặt nhưng chưa thanh toán
   BOOKED = 'booked',
   MAINTENANCE = 'maintenance',
 }

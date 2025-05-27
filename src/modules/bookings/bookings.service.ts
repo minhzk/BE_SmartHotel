@@ -171,12 +171,12 @@ export class BookingsService {
       number_of_guests: createBookingDto.number_of_guests || 1,
     });
 
-    // Mark the room as booked for the date range
+    // Mark the room as RESERVED (not BOOKED) for the date range until payment is confirmed
     await this.roomAvailabilityService.bulkUpdateStatus(
       createBookingDto.room_id,
       checkInDate.toDate(),
       checkOutDate.subtract(1, 'day').toDate(), // Not including checkout day
-      RoomStatus.BOOKED,
+      RoomStatus.RESERVED, // Thay đổi từ BOOKED sang RESERVED
     );
 
     // Create notification
@@ -718,5 +718,35 @@ export class BookingsService {
     } finally {
       session.endSession();
     }
+  }
+
+  async confirmPaymentAndUpdateRoomStatus(
+    bookingId: string,
+    paymentType: string,
+  ) {
+    const booking = await this.bookingModel.findOne({ booking_id: bookingId });
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    // Chỉ cập nhật room status thành BOOKED khi đã thanh toán deposit hoặc full payment
+    if (paymentType === 'deposit' || paymentType === 'full_payment') {
+      const checkInDate = dayjs.utc(booking.check_in_date).startOf('day');
+      const checkOutDate = dayjs.utc(booking.check_out_date).startOf('day');
+
+      await this.roomAvailabilityService.updateRoomStatusAfterPayment(
+        booking.room_id.toString(),
+        checkInDate.toDate(),
+        checkOutDate.subtract(1, 'day').toDate(),
+        RoomStatus.BOOKED,
+      );
+
+      // Cập nhật trạng thái booking thành CONFIRMED
+      await this.bookingModel.findByIdAndUpdate(booking._id, {
+        status: BookingStatus.CONFIRMED,
+      });
+    }
+
+    return { message: 'Room status updated after payment confirmation' };
   }
 }

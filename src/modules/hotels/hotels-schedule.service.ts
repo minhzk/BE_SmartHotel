@@ -18,7 +18,7 @@ export class HotelsScheduleService {
   /**
    * Task chạy mỗi ngày lúc 0h để cập nhật sentiment_score và sentiment_label cho khách sạn
    */
-  @Cron(CronExpression.EVERY_DAY_AT_2PM)
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async updateHotelsSentiment() {
     this.logger.log('Đang cập nhật sentiment cho các khách sạn...');
     try {

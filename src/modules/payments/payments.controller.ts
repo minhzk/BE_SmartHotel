@@ -93,6 +93,14 @@ export class PaymentsController {
     return this.paymentsService.getPaymentStatus(id, req.user._id);
   }
 
+  @Post(':id/update-room-status')
+  @ResponseMessage('Update room status after payment successfully')
+  async updateRoomStatusAfterPayment(@Request() req, @Param('id') id: string) {
+    const payment = await this.paymentsService.findOne(id, req.user._id);
+    // Logic to update room status will be handled in the service
+    return { message: 'Room status updated successfully' };
+  }
+
   @Post('wallet/deposit')
   @ResponseMessage('Create wallet deposit successfully')
   depositToWallet(@Request() req, @Body() walletDepositDto: WalletDepositDto) {

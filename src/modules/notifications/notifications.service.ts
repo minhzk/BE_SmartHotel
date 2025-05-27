@@ -265,4 +265,20 @@ export class NotificationsService {
 
     return notification;
   }
+
+  async createBookingExpiredNotification(
+    userId: string,
+    bookingId: string,
+    hotelName: string,
+  ) {
+    const notification = await this.create({
+      user_id: userId,
+      type: NotificationType.BOOKING_EXPIRED,
+      title: 'Đặt phòng đã hết hạn',
+      message: `Đặt phòng của bạn tại ${hotelName} đã hết hạn do chưa thanh toán trong thời gian quy định. Mã đặt phòng: ${bookingId}`,
+      data: { booking_id: bookingId },
+    });
+
+    return notification;
+  }
 }

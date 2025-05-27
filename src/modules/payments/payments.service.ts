@@ -16,6 +16,7 @@ import { User } from '../users/schemas/user.schema';
 import aqp from 'api-query-params';
 import { v4 as uuidv4 } from 'uuid';
 import { NotificationsService } from '../notifications/notifications.service';
+import { RoomStatus } from '../room-availability/schemas/room-availability.schema';
 
 @Injectable()
 export class PaymentsService {
@@ -241,6 +242,28 @@ export class PaymentsService {
     return payment;
   }
 
+  async getPaymentStatus(transactionId: string, userId: string) {
+    // Get payment by transaction ID
+    const payment = await this.findOne(transactionId, userId);
+
+    // For VNPay payments, query latest status from VNPay
+    if (
+      payment.payment_method === 'vnpay' &&
+      payment.status === PaymentStatus.PENDING
+    ) {
+      return await this.vnpayService.queryTransactionStatus(transactionId);
+    }
+
+    // For other payment methods or completed payments, return current status
+    return {
+      transaction_id: payment.transaction_id,
+      booking_id: payment.booking_id,
+      status: payment.status,
+      amount: payment.amount,
+      payment_date: payment.payment_date,
+    };
+  }
+
   private async processWalletPayment(
     userId: string,
     booking: any,
@@ -263,6 +286,9 @@ export class PaymentsService {
       status: PaymentStatus.COMPLETED, // Wallet payments are completed immediately
       payment_date: new Date(),
     });
+
+    // Cập nhật room availability status sau khi thanh toán thành công
+    await this.updateRoomStatusAfterPayment(booking, paymentType);
 
     // Xác định loại thanh toán cho thông báo
     let notificationType: 'deposit' | 'remaining' | 'full' = 'full';
@@ -318,13 +344,19 @@ export class PaymentsService {
   async processVnpayReturn(vnpParams: any) {
     const result = await this.vnpayService.processReturnUrl(vnpParams);
 
-    // Nếu thanh toán thành công, gửi thông báo
+    // Nếu thanh toán thành công, cập nhật room status và gửi thông báo
     if (
       result.success &&
       result.paymentInfo &&
       result.paymentInfo.status === PaymentStatus.COMPLETED
     ) {
       try {
+        // Cập nhật room status cho VNPay payments
+        if (result.paymentInfo.booking_id !== 'wallet-deposit') {
+          const booking = await this.bookingsService.findOne(result.paymentInfo.booking_id);
+          await this.updateRoomStatusAfterPayment(booking, result.paymentInfo.payment_type);
+        }
+
         await this.notificationsService.createPaymentReceivedNotification(
           result.paymentInfo.user_id,
           result.paymentInfo.booking_id,
@@ -332,7 +364,7 @@ export class PaymentsService {
         );
       } catch (error) {
         console.error(
-          `Lỗi khi gửi thông báo thanh toán VNPay: ${error.message}`,
+          `Lỗi khi xử lý sau thanh toán VNPay: ${error.message}`,
         );
       }
     }
@@ -345,13 +377,19 @@ export class PaymentsService {
       // Xử lý thanh toán
       const result = await this.vnpayService.processReturnUrl(vnpParams);
 
-      // Gửi thông báo nếu thành công
+      // Cập nhật room status và gửi thông báo nếu thành công
       if (
         result.success &&
         result.paymentInfo &&
         result.paymentInfo.status === PaymentStatus.COMPLETED
       ) {
         try {
+          // Cập nhật room status cho VNPay payments
+          if (result.paymentInfo.booking_id !== 'wallet-deposit') {
+            const booking = await this.bookingsService.findOne(result.paymentInfo.booking_id);
+            await this.updateRoomStatusAfterPayment(booking, result.paymentInfo.payment_type);
+          }
+
           await this.notificationsService.createPaymentReceivedNotification(
             result.paymentInfo.user_id,
             result.paymentInfo.booking_id,
@@ -359,7 +397,7 @@ export class PaymentsService {
           );
         } catch (error) {
           console.error(
-            `Lỗi khi gửi thông báo thanh toán VNPay: ${error.message}`,
+            `Lỗi khi xử lý sau thanh toán VNPay: ${error.message}`,
           );
         }
       }
@@ -401,20 +439,26 @@ export class PaymentsService {
   async processVnpayIpn(vnpParams: any) {
     const result = await this.vnpayService.processIpnUrl(vnpParams);
 
-    // Gửi thông báo nếu cập nhật thành công
+    // Cập nhật room status và gửi thông báo nếu cập nhật thành công
     if (
       result.success &&
       result.paymentInfo &&
       result.paymentInfo.status === PaymentStatus.COMPLETED
     ) {
       try {
+        // Cập nhật room status cho VNPay payments
+        if (result.paymentInfo.booking_id !== 'wallet-deposit') {
+          const booking = await this.bookingsService.findOne(result.paymentInfo.booking_id);
+          await this.updateRoomStatusAfterPayment(booking, result.paymentInfo.payment_type);
+        }
+
         await this.notificationsService.createPaymentReceivedNotification(
           result.paymentInfo.user_id,
           result.paymentInfo.booking_id,
           result.paymentInfo.amount,
         );
       } catch (error) {
-        console.error(`Lỗi khi gửi thông báo IPN VNPay: ${error.message}`);
+        console.error(`Lỗi khi xử lý IPN VNPay: ${error.message}`);
       }
     }
 
@@ -466,28 +510,6 @@ export class PaymentsService {
     // Implementation to check if user is admin
     // This would call UserService or check directly
     return false; // Default for simplicity
-  }
-
-  async getPaymentStatus(transactionId: string, userId: string) {
-    // Get payment by transaction ID
-    const payment = await this.findOne(transactionId, userId);
-
-    // For VNPay payments, query latest status from VNPay
-    if (
-      payment.payment_method === 'vnpay' &&
-      payment.status === PaymentStatus.PENDING
-    ) {
-      return await this.vnpayService.queryTransactionStatus(transactionId);
-    }
-
-    // For other payment methods or completed payments, return current status
-    return {
-      transaction_id: payment.transaction_id,
-      booking_id: payment.booking_id,
-      status: payment.status,
-      amount: payment.amount,
-      payment_date: payment.payment_date,
-    };
   }
 
   async processRefund(
@@ -568,5 +590,31 @@ export class PaymentsService {
       process.env.FRONTEND_PAYMENT_RESULT_URL ||
       'http://localhost:3000/payment-result'
     );
+  }
+
+  /**
+   * Helper method để cập nhật room status sau khi thanh toán thành công
+   */
+  private async updateRoomStatusAfterPayment(booking: any, paymentType: PaymentType) {
+    if (
+      paymentType === PaymentType.DEPOSIT ||
+      paymentType === PaymentType.FULL_PAYMENT
+    ) {
+      try {
+        const { RoomAvailabilityService } = await import(
+          '../room-availability/room-availability.service'
+        );
+        const roomAvailabilityService = new (RoomAvailabilityService as any)();
+
+        await roomAvailabilityService.updateRoomStatusAfterPayment(
+          booking.room_id,
+          booking.check_in_date,
+          booking.check_out_date,
+          RoomStatus.BOOKED,
+        );
+      } catch (error) {
+        console.error('Error updating room status after payment:', error);
+      }
+    }
   }
 }

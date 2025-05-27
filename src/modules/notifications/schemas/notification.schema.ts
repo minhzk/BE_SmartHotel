@@ -15,6 +15,7 @@ export enum NotificationType {
   REVIEW_RECEIVED = 'review_received',
   REVIEW_RESPONSE = 'review_response',
   SYSTEM = 'system',
+  BOOKING_EXPIRED = 'booking_expired', // Thông báo hết hạn đặt phòng
 }
 
 @Schema({ timestamps: true })

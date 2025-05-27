@@ -8,6 +8,8 @@ import {
   PaymentStatus,
 } from './schemas/booking.schema';
 import { NotificationsService } from '../notifications/notifications.service';
+import { RoomAvailabilityService } from '../room-availability/room-availability.service';
+import { RoomStatus } from '../room-availability/schemas/room-availability.schema';
 import { InjectConnection } from '@nestjs/mongoose';
 import * as mongoose from 'mongoose';
 import dayjs from 'dayjs';
@@ -19,6 +21,7 @@ export class BookingsScheduleService {
   constructor(
     @InjectModel(Booking.name) private bookingModel: Model<Booking>,
     private readonly notificationsService: NotificationsService,
+    private readonly roomAvailabilityService: RoomAvailabilityService,
     @InjectConnection() private readonly connection: mongoose.Connection,
   ) {}
 
@@ -124,6 +127,95 @@ export class BookingsScheduleService {
       }
     } catch (error) {
       this.logger.error('Lỗi khi gửi thông báo nhắc nhở check-in:', error);
+    }
+  }
+
+  /**
+   * Task chạy mỗi giờ một lần để tự động hủy các booking chưa thanh toán quá 10 phút
+   */
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  async autoExpireUnpaidBookings() {
+    this.logger.log(
+      'Đang kiểm tra và tự động hủy các booking chưa thanh toán...',
+    );
+
+    try {
+      // Tìm tất cả booking chưa thanh toán và đã quá 10 phút
+      const expiredTime = dayjs().subtract(10, 'minute').toDate();
+
+      const expiredBookings = await this.bookingModel.find({
+        status: BookingStatus.PENDING,
+        payment_status: PaymentStatus.PENDING,
+        createdAt: { $lte: expiredTime },
+      });
+
+      let expiredCount = 0;
+
+      // Lấy thông tin khách sạn một lần để tối ưu hiệu suất
+      const hotelIds = [
+        ...new Set(expiredBookings.map((b) => b.hotel_id.toString())),
+      ];
+      const hotels = await this.connection.db
+        .collection('hotels')
+        .find({
+          _id: { $in: hotelIds.map((id) => new mongoose.Types.ObjectId(id)) },
+        })
+        .toArray();
+
+      const hotelMap = hotels.reduce((map, hotel) => {
+        map[hotel._id.toString()] = hotel.name;
+        return map;
+      }, {});
+
+      for (const booking of expiredBookings) {
+        try {
+          // Cập nhật trạng thái booking
+          await this.bookingModel.findByIdAndUpdate(booking._id, {
+            status: BookingStatus.EXPIRED,
+            payment_status: PaymentStatus.EXPIRED,
+            cancellation_reason:
+              'Auto-expired due to non-payment after 2 hours',
+            cancelled_at: new Date(),
+          });
+
+          // Giải phóng room availability
+          const checkInDate = dayjs.utc(booking.check_in_date).startOf('day');
+          const checkOutDate = dayjs.utc(booking.check_out_date).startOf('day');
+
+          await this.roomAvailabilityService.bulkUpdateStatus(
+            booking.room_id.toString(),
+            checkInDate.toDate(),
+            checkOutDate.subtract(1, 'day').toDate(),
+            RoomStatus.AVAILABLE,
+          );
+
+          // Gửi thông báo booking đã hết hạn
+          try {
+            const hotelName =
+              hotelMap[booking.hotel_id.toString()] || 'Khách sạn';
+            await this.notificationsService.createBookingExpiredNotification(
+              booking.user_id.toString(),
+              booking.booking_id,
+              hotelName,
+            );
+          } catch (notificationError) {
+            this.logger.error(
+              `Lỗi khi gửi thông báo hết hạn cho booking ${booking.booking_id}: ${notificationError.message}`,
+            );
+          }
+
+          expiredCount++;
+          this.logger.log(`Đã tự động hủy booking: ${booking.booking_id}`);
+        } catch (error) {
+          this.logger.error(
+            `Lỗi khi tự động hủy booking ${booking.booking_id}: ${error.message}`,
+          );
+        }
+      }
+
+      this.logger.log(`Đã tự động hủy ${expiredCount} booking chưa thanh toán`);
+    } catch (error) {
+      this.logger.error('Lỗi khi tự động hủy booking chưa thanh toán:', error);
     }
   }
 }

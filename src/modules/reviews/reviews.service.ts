@@ -54,9 +54,13 @@ export class ReviewsService {
     let sentimentLabel = null;
 
     try {
-      const sentimentResult = await this.sentimentService.analyzeSentiment(
+      // Detect language and translate to English if needed
+      const englishText = await this.translateToEnglishIfNeeded(
         createReviewDto.review_text,
       );
+
+      const sentimentResult =
+        await this.sentimentService.analyzeSentiment(englishText);
       sentiment = sentimentResult.score;
       sentimentLabel = sentimentResult.label;
     } catch (error) {
@@ -137,9 +141,7 @@ export class ReviewsService {
     // Xử lý tìm kiếm theo text
     if (filters?.search) {
       const searchRegex = new RegExp(filters.search, 'i');
-      customFilter.$or = [
-        { review_text: searchRegex },
-      ];
+      customFilter.$or = [{ review_text: searchRegex }];
     }
 
     // Đặt giá trị mặc định cho phân trang
@@ -298,9 +300,13 @@ export class ReviewsService {
       updateReviewDto.review_text !== review.review_text
     ) {
       try {
-        const sentimentResult = await this.sentimentService.analyzeSentiment(
+        // Detect language and translate to English if needed
+        const englishText = await this.translateToEnglishIfNeeded(
           updateReviewDto.review_text,
         );
+
+        const sentimentResult =
+          await this.sentimentService.analyzeSentiment(englishText);
         updateReviewDto['sentiment'] = sentimentResult.score;
         updateReviewDto['sentiment_label'] = sentimentResult.label;
       } catch (error) {
@@ -454,5 +460,90 @@ export class ReviewsService {
     }
 
     return true;
+  }
+
+  private async translateToEnglishIfNeeded(text: string): Promise<string> {
+    try {
+      // Simple language detection - check for Vietnamese characters
+      const vietnamesePattern =
+        /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđĐ]/;
+
+      // If text contains Vietnamese characters, translate to English
+      if (vietnamesePattern.test(text)) {
+        console.log('Vietnamese text detected, translating to English...');
+
+        // Use Google Translate API or similar service
+        const translatedText = await this.translateText(text, 'vi', 'en');
+        console.log('Original text:', text);
+        console.log('Translated text:', translatedText);
+
+        return translatedText;
+      }
+
+      // If text appears to be English, return as is
+      return text;
+    } catch (error) {
+      console.error('Translation failed, using original text:', error);
+      return text; // Fallback to original text if translation fails
+    }
+  }
+
+  private async translateText(
+    text: string,
+    fromLang: string,
+    toLang: string,
+  ): Promise<string> {
+    try {
+      // Using MyMemory API (free, no API key required)
+      const axios = require('axios');
+
+      const response = await axios.get(
+        `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${fromLang}|${toLang}`,
+      );
+
+      console.log('MyMemory API response:', response.data);
+
+      if (response.data && response.data.responseData) {
+        return response.data.responseData.translatedText;
+      }
+
+      throw new Error('Translation API response invalid');
+    } catch (error) {
+      console.error('MyMemory API error:', error);
+
+      // Fallback: Simple word replacement for common Vietnamese words
+      return this.simpleVietnameseToEnglish(text);
+    }
+  }
+
+  private simpleVietnameseToEnglish(text: string): string {
+    const commonTranslations = {
+      'tốt': 'good',
+      'xấu': 'bad',
+      'tuyệt vời': 'excellent',
+      'rất tốt': 'very good',
+      'không tốt': 'not good',
+      'dịch vụ': 'service',
+      'phòng': 'room',
+      'sạch sẽ': 'clean',
+      'bẩn': 'dirty',
+      'nhân viên': 'staff',
+      'thân thiện': 'friendly',
+      'giá cả': 'price',
+      'đắt': 'expensive',
+      'rẻ': 'cheap',
+      'khách sạn': 'hotel',
+      'ăn sáng': 'breakfast',
+      'điều hòa': 'air conditioning',
+    };
+
+    let translatedText = text.toLowerCase();
+
+    Object.entries(commonTranslations).forEach(([vietnamese, english]) => {
+      const regex = new RegExp(vietnamese, 'gi');
+      translatedText = translatedText.replace(regex, english);
+    });
+
+    return translatedText;
   }
 }

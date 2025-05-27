@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, forwardRef, Inject } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -13,6 +13,7 @@ import { RoomStatus } from '../room-availability/schemas/room-availability.schem
 import { InjectConnection } from '@nestjs/mongoose';
 import * as mongoose from 'mongoose';
 import dayjs from 'dayjs';
+import { BookingsService } from './bookings.service';
 
 @Injectable()
 export class BookingsScheduleService {
@@ -22,6 +23,8 @@ export class BookingsScheduleService {
     @InjectModel(Booking.name) private bookingModel: Model<Booking>,
     private readonly notificationsService: NotificationsService,
     private readonly roomAvailabilityService: RoomAvailabilityService,
+    @Inject(forwardRef(() => BookingsService))
+    private readonly bookingsService: BookingsService,
     @InjectConnection() private readonly connection: mongoose.Connection,
   ) {}
 
@@ -216,6 +219,123 @@ export class BookingsScheduleService {
       this.logger.log(`Đã tự động hủy ${expiredCount} booking chưa thanh toán`);
     } catch (error) {
       this.logger.error('Lỗi khi tự động hủy booking chưa thanh toán:', error);
+    }
+  }
+
+  /**
+   * Task chạy mỗi ngày lúc nửa đêm để kiểm tra và hủy các booking chỉ đặt cọc
+   * mà chưa hoàn thành thanh toán trước 2 ngày check-in
+   */
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async autoCancelIncompletePaymentBookings() {
+    this.logger.log(
+      'Đang kiểm tra và hủy các booking chưa hoàn thành thanh toán trước deadline...',
+    );
+
+    try {
+      // Tính ngày sau 2 ngày nữa (deadline thanh toán)
+      const twoDaysFromNow = dayjs().add(3, 'day').startOf('day').toDate();
+
+      // Tìm các booking chỉ đặt cọc nhưng chưa hoàn thành thanh toán
+      // và sắp đến hạn check-in (trong vòng 2 ngày)
+      const incompleteBookings = await this.bookingModel.find({
+        status: BookingStatus.CONFIRMED,
+        deposit_status: 'paid',
+        payment_status: PaymentStatus.PARTIALLY_PAID,
+        check_in_date: { $lte: twoDaysFromNow },
+      });
+
+      let canceledCount = 0;
+
+      // Lấy thông tin khách sạn một lần để tối ưu hiệu suất
+      const hotelIds = [
+        ...new Set(incompleteBookings.map((b) => b.hotel_id.toString())),
+      ];
+      const hotels = await this.connection.db
+        .collection('hotels')
+        .find({
+          _id: { $in: hotelIds.map((id) => new mongoose.Types.ObjectId(id)) },
+        })
+        .toArray();
+
+      const hotelMap = hotels.reduce((map, hotel) => {
+        map[hotel._id.toString()] = hotel.name;
+        return map;
+      }, {});
+
+      for (const booking of incompleteBookings) {
+        try {
+          // Cập nhật trạng thái booking thành CANCELED
+          await this.bookingModel.findByIdAndUpdate(booking._id, {
+            status: BookingStatus.CANCELED,
+            cancellation_reason:
+              'Auto-canceled due to incomplete payment before check-in deadline',
+            cancelled_at: new Date(),
+          });
+
+          // Giải phóng room availability
+          const checkInDate = dayjs.utc(booking.check_in_date).startOf('day');
+          const checkOutDate = dayjs.utc(booking.check_out_date).startOf('day');
+
+          await this.roomAvailabilityService.bulkUpdateStatus(
+            booking.room_id.toString(),
+            checkInDate.toDate(),
+            checkOutDate.subtract(1, 'day').toDate(),
+            RoomStatus.AVAILABLE,
+          );
+
+          // Logic hoàn tiền deposit sử dụng processRefund method từ BookingsService
+          if (booking.deposit_status === 'paid' && booking.deposit_amount > 0) {
+            try {
+              await this.bookingsService['processRefund'](
+                booking,
+                booking.user_id.toString(),
+              );
+              this.logger.log(
+                `Đã hoàn tiền ${booking.deposit_amount} VNĐ cho booking ${booking.booking_id}`,
+              );
+            } catch (refundError) {
+              this.logger.error(
+                `Lỗi khi hoàn tiền cho booking ${booking.booking_id}: ${refundError.message}`,
+              );
+            }
+          }
+
+          // Gửi thông báo booking bị hủy do chưa hoàn thành thanh toán
+          try {
+            const hotelName =
+              hotelMap[booking.hotel_id.toString()] || 'Khách sạn';
+            await this.notificationsService.createBookingCanceledNotification(
+              booking.user_id.toString(),
+              booking.booking_id,
+              hotelName,
+              'Booking đã bị hủy do chưa hoàn thành thanh toán trước deadline check-in',
+            );
+          } catch (notificationError) {
+            this.logger.error(
+              `Lỗi khi gửi thông báo hủy booking ${booking.booking_id}: ${notificationError.message}`,
+            );
+          }
+
+          canceledCount++;
+          this.logger.log(
+            `Đã hủy booking do chưa hoàn thành thanh toán: ${booking.booking_id}`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `Lỗi khi hủy booking ${booking.booking_id}: ${error.message}`,
+          );
+        }
+      }
+
+      this.logger.log(
+        `Đã hủy ${canceledCount} booking do chưa hoàn thành thanh toán trước deadline`,
+      );
+    } catch (error) {
+      this.logger.error(
+        'Lỗi khi kiểm tra và hủy booking chưa hoàn thành thanh toán:',
+        error,
+      );
     }
   }
 }

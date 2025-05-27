@@ -378,6 +378,7 @@ export class BookingsService {
           booking.user_id.toString(),
           booking.booking_id,
           hotelName,
+          updatedBooking.cancellation_reason,
         );
       }
     } catch (error) {
@@ -443,6 +444,7 @@ export class BookingsService {
         booking.user_id.toString(),
         booking.booking_id,
         hotel?.name || 'Khách sạn',
+        cancelBookingDto.cancellation_reason,
       );
     } catch (error) {
       console.error(

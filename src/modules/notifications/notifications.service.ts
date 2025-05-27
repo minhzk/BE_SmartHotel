@@ -179,16 +179,22 @@ export class NotificationsService {
     userId: string,
     bookingId: string,
     hotelName: string,
+    customMessage?: string,
   ) {
-    const notification = await this.create({
+    const defaultMessage = `Đặt phòng ${bookingId} tại ${hotelName} đã bị hủy`;
+    const message = customMessage || defaultMessage;
+
+    return this.create({
       user_id: userId,
       type: NotificationType.BOOKING_CANCELED,
       title: 'Đặt phòng đã bị hủy',
-      message: `Đặt phòng của bạn tại ${hotelName} đã bị hủy. Mã đặt phòng: ${bookingId}`,
-      data: { booking_id: bookingId },
+      message: message,
+      data: {
+        booking_id: bookingId,
+        hotel_name: hotelName,
+        action_url: `/bookings/${bookingId}`,
+      },
     });
-
-    return notification;
   }
 
   async createPaymentReceivedNotification(

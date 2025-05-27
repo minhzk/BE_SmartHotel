@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Nhắc nhở thanh toán - SmartHotel</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #1890ff; color: white; padding: 20px; text-align: center; }
+        .content { background-color: #f9f9f9; padding: 30px; }
+        .booking-info { background-color: white; padding: 20px; margin: 20px 0; border-left: 4px solid #1890ff; }
+        .amount { font-size: 24px; font-weight: bold; color: #ff4d4f; }
+        .button { display: inline-block; background-color: #52c41a; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin-top: 20px; }
+        .footer { text-align: center; color: #666; font-size: 12px; margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>SmartHotel</h1>
+            <h2>Nhắc nhở thanh toán</h2>
+        </div>
+        
+        <div class="content">
+            <p>Xin chào <strong>{{name}}</strong>,</p>
+            
+            <p>Chúng tôi xin nhắc nhở bạn về việc thanh toán số tiền còn lại cho đơn đặt phòng của bạn.</p>
+            
+            <div class="booking-info">
+                <h3>Thông tin đặt phòng:</h3>
+                <p><strong>Mã đặt phòng:</strong> {{bookingId}}</p>
+                <p><strong>Khách sạn:</strong> {{hotelName}}</p>
+                <p><strong>Ngày check-in:</strong> {{checkInDate}}</p>
+                <p><strong>Số tiền cần thanh toán:</strong> <span class="amount">{{remainingAmount}} VNĐ</span></p>
+            </div>
+            
+            <p>Để đảm bảo đặt phòng của bạn được giữ chỗ, vui lòng hoàn tất thanh toán trước ngày check-in.</p>
+            
+            <p style="text-align: center;">
+                <a href="{{paymentUrl}}" class="button">Thanh toán ngay</a>
+            </p>
+            
+            <p><em>Lưu ý: Nếu không hoàn tất thanh toán trước 2 ngày check-in, đặt phòng của bạn có thể bị hủy.</em></p>
+        </div>
+        
+        <div class="footer">
+            <p>Cảm ơn bạn đã sử dụng dịch vụ SmartHotel!</p>
+            <p>Email này được gửi tự động, vui lòng không trả lời.</p>
+        </div>
+    </div>
+</body>
+</html>

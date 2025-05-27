@@ -287,4 +287,29 @@ export class NotificationsService {
 
     return notification;
   }
+
+  async createPaymentDueReminderNotification(
+    userId: string,
+    bookingId: string,
+    hotelName: string,
+    remainingAmount: number,
+    checkInDate: Date,
+  ) {
+    const formattedDate = new Date(checkInDate).toLocaleDateString('vi-VN');
+    const notification = await this.create({
+      user_id: userId,
+      type: NotificationType.PAYMENT_DUE,
+      title: 'Nhắc nhở thanh toán số tiền còn lại',
+      message: `Bạn cần thanh toán số tiền còn lại ${remainingAmount.toLocaleString('vi-VN')} VNĐ cho đơn đặt phòng ${bookingId} tại ${hotelName}. Ngày check-in: ${formattedDate}`,
+      data: {
+        booking_id: bookingId,
+        remaining_amount: remainingAmount,
+        check_in_date: checkInDate,
+        action_url: `/bookings/payment/${bookingId}?type=remaining`,
+      },
+    });
+    
+
+    return notification;
+  }
 }

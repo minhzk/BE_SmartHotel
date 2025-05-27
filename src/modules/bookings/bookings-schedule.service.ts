@@ -14,6 +14,7 @@ import { InjectConnection } from '@nestjs/mongoose';
 import * as mongoose from 'mongoose';
 import dayjs from 'dayjs';
 import { BookingsService } from './bookings.service';
+import { MailerService } from '@nestjs-modules/mailer';
 
 @Injectable()
 export class BookingsScheduleService {
@@ -25,6 +26,7 @@ export class BookingsScheduleService {
     private readonly roomAvailabilityService: RoomAvailabilityService,
     @Inject(forwardRef(() => BookingsService))
     private readonly bookingsService: BookingsService,
+    private readonly mailerService: MailerService,
     @InjectConnection() private readonly connection: mongoose.Connection,
   ) {}
 
@@ -219,6 +221,115 @@ export class BookingsScheduleService {
       this.logger.log(`Đã tự động hủy ${expiredCount} booking chưa thanh toán`);
     } catch (error) {
       this.logger.error('Lỗi khi tự động hủy booking chưa thanh toán:', error);
+    }
+  }
+
+  /**
+   * Task chạy hàng ngày để gửi thông báo nhắc nhở thanh toán số tiền còn lại
+   * Gửi nhắc nhở cho những booking còn 3 ngày trước check-in và chưa thanh toán đầy đủ
+   */
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async sendPaymentDueReminders() {
+    this.logger.log(
+      'Đang gửi thông báo nhắc nhở thanh toán số tiền còn lại...',
+    );
+
+    try {
+      const threeDaysFromNow = dayjs().add(3, 'day').startOf('day');
+      const fourDaysFromNow = dayjs().add(4, 'day').startOf('day');
+
+      // Tìm các booking đã đặt cọc nhưng chưa thanh toán đầy đủ và sắp check-in trong 3 ngày
+      const bookings = await this.bookingModel.find({
+        status: BookingStatus.CONFIRMED,
+        deposit_status: 'paid',
+        payment_status: PaymentStatus.PARTIALLY_PAID,
+        check_in_date: {
+          $gte: threeDaysFromNow.toDate(),
+          $lt: fourDaysFromNow.toDate(),
+        },
+      });
+
+      this.logger.log(
+        `Tìm thấy ${bookings.length} booking cần nhắc nhở thanh toán`,
+      );
+
+      // Lấy thông tin khách sạn và người dùng
+      const hotelIds = [...new Set(bookings.map((b) => b.hotel_id.toString()))];
+      const userIds = [...new Set(bookings.map((b) => b.user_id.toString()))];
+
+      const [hotels, users] = await Promise.all([
+        this.connection.db
+          .collection('hotels')
+          .find({
+            _id: { $in: hotelIds.map((id) => new mongoose.Types.ObjectId(id)) },
+          })
+          .toArray(),
+        this.connection.db
+          .collection('users')
+          .find({
+            _id: { $in: userIds.map((id) => new mongoose.Types.ObjectId(id)) },
+          })
+          .toArray(),
+      ]);
+
+      const hotelMap = hotels.reduce((map, hotel) => {
+        map[hotel._id.toString()] = hotel.name;
+        return map;
+      }, {});
+
+      const userMap = users.reduce((map, user) => {
+        map[user._id.toString()] = user;
+        return map;
+      }, {});
+
+      for (const booking of bookings) {
+        try {
+          const hotelName =
+            hotelMap[booking.hotel_id.toString()] || 'Khách sạn';
+          const user = userMap[booking.user_id.toString()];
+
+          // Gửi thông báo trong app
+          await this.notificationsService.createPaymentDueReminderNotification(
+            booking.user_id.toString(),
+            booking.booking_id,
+            hotelName,
+            booking.remaining_amount,
+            booking.check_in_date,
+          );
+
+          // Gửi email nhắc nhở
+          if (user?.email) {
+            await this.mailerService.sendMail({
+              to: user.email,
+              subject: 'Nhắc nhở thanh toán số tiền còn lại - SmartHotel',
+              template: 'payment-reminder',
+              context: {
+                name: user.name || user.email,
+                bookingId: booking.booking_id,
+                hotelName: hotelName,
+                remainingAmount:
+                  booking.remaining_amount.toLocaleString('vi-VN'),
+                checkInDate: dayjs(booking.check_in_date).format('DD/MM/YYYY'),
+                paymentUrl: `${process.env.FRONTEND_URL}/bookings/payment/${booking.booking_id}?type=remaining`,
+              },
+            });
+
+            this.logger.log(
+              `Đã gửi email nhắc nhở thanh toán cho user: ${user.email}`,
+            );
+          }
+
+          this.logger.log(
+            `Đã gửi thông báo nhắc nhở thanh toán cho booking: ${booking.booking_id}`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `Lỗi khi gửi thông báo nhắc nhở thanh toán cho booking ${booking.booking_id}: ${error.message}`,
+          );
+        }
+      }
+    } catch (error) {
+      this.logger.error('Lỗi khi gửi thông báo nhắc nhở thanh toán:', error);
     }
   }
 

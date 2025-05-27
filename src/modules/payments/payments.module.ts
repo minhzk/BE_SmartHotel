@@ -5,6 +5,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Payment, PaymentSchema } from './schemas/payment.schema';
 import { VnpayService } from './vnpay/vnpay.service';
 import { BookingsModule } from '../bookings/bookings.module';
+import { RoomAvailabilityModule } from '../room-availability/room-availability.module';
 import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { PaymentProcessorService } from './payment-processor.service';
@@ -20,6 +21,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
       { name: User.name, schema: UserSchema }, // Thêm User model
     ]),
     forwardRef(() => BookingsModule),
+    RoomAvailabilityModule, // Thêm RoomAvailabilityModule để inject RoomAvailabilityService
     ConfigModule,
     EventEmitterModule.forRoot(),
     NotificationsModule,

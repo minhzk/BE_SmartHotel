@@ -104,8 +104,6 @@ export class VnpayService {
   }
 
   async processReturnUrl(vnpParams: any): Promise<any> {
-    console.log('Processing VNPay return with params:', vnpParams);
-
     const secureHash = vnpParams['vnp_SecureHash'];
     delete vnpParams['vnp_SecureHash'];
     delete vnpParams['vnp_SecureHashType'];

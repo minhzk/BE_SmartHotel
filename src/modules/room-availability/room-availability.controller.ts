@@ -78,12 +78,6 @@ export class RoomAvailabilityController {
     );
   }
 
-  @Post('auto-cancel-expired')
-  @ResponseMessage('Auto cancel expired reservations successfully')
-  autoCancelExpiredReservations() {
-    return this.roomAvailabilityService.autoCancelExpiredReservations();
-  }
-
   @Get()
   @Public()
   @ResponseMessage('Fetch room availabilities successfully')

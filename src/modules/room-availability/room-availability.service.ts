@@ -336,37 +336,6 @@ export class RoomAvailabilityService {
     });
   }
 
-  async autoCancelExpiredReservations() {
-    try {
-      // Tìm tất cả các reservation đã quá hạn (quá 2 giờ mà chưa thanh toán)
-      const expiredTime = dayjs().subtract(2, 'hour').toDate();
-
-      const expiredReservations = await this.roomAvailabilityModel.find({
-        status: RoomStatus.RESERVED,
-        createdAt: { $lte: expiredTime },
-      });
-
-      let canceledCount = 0;
-
-      for (const reservation of expiredReservations) {
-        // Cập nhật trạng thái về AVAILABLE
-        await this.roomAvailabilityModel.findByIdAndUpdate(reservation._id, {
-          status: RoomStatus.AVAILABLE,
-        });
-        canceledCount++;
-      }
-
-      return {
-        message: `Auto-canceled ${canceledCount} expired reservations`,
-        canceledCount,
-      };
-    } catch (error) {
-      throw new BadRequestException(
-        `Failed to auto-cancel expired reservations: ${error.message}`,
-      );
-    }
-  }
-
   async updateRoomStatusAfterPayment(
     roomId: string,
     startDate: Date,

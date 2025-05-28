@@ -40,6 +40,8 @@ export class ReviewsService {
       createReviewDto.hotel_id,
     );
 
+    console.log('User can review:', canReview);
+
     if (!canReview) {
       throw new BadRequestException(
         'You can only review hotels after completing your stay',
@@ -58,6 +60,8 @@ export class ReviewsService {
       const englishText = await this.translateToEnglishIfNeeded(
         createReviewDto.review_text,
       );
+
+      console.log('Review text in English:', englishText);
 
       const sentimentResult =
         await this.sentimentService.analyzeSentiment(englishText);
@@ -432,23 +436,68 @@ export class ReviewsService {
       return false; // Người dùng đã đánh giá khách sạn này rồi
     }
 
+    // Tạo thời gian so sánh
+    const todayStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
+    const todayNoon = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      12,
+      0,
+      0,
+    );
+
     // Tìm booking của user tại hotel này đã checkout
     const completedBooking = await this.bookingModel.findOne({
       user_id: userId,
       hotel_id: hotelId,
-      check_out_date: { $lt: now }, // Đã qua thời gian checkout
       status: 'completed', // Booking đã hoàn thành (không phải đã hủy)
     });
 
     if (!completedBooking) {
-      console.log(
-        `User ${userId} has no completed bookings at hotel ${hotelId}`,
-      );
       return false; // Không tìm thấy booking hoàn thành nào
     }
 
-    // Kiểm tra thời hạn đánh giá (30 ngày sau checkout)
     const checkoutDate = new Date(completedBooking.check_out_date);
+    const checkoutDateStart = new Date(
+      checkoutDate.getFullYear(),
+      checkoutDate.getMonth(),
+      checkoutDate.getDate(),
+    );
+    const checkoutDateNoon = new Date(
+      checkoutDate.getFullYear(),
+      checkoutDate.getMonth(),
+      checkoutDate.getDate(),
+      12,
+      0,
+      0,
+    );
+
+    // Kiểm tra điều kiện checkout
+    let canReviewBasedOnTime = false;
+
+    // Điều kiện 1: Ngày check-out đã qua hoàn toàn
+    if (checkoutDate < todayStart) {
+      canReviewBasedOnTime = true;
+    }
+    // Điều kiện 2: Ngày check-out là hôm nay và đã qua 12h trưa
+    else if (
+      checkoutDateStart.getTime() === todayStart.getTime() &&
+      now >= checkoutDateNoon
+    ) {
+      console.log('Condition 2: Checkout date is today and past 12 PM');
+      canReviewBasedOnTime = true;
+    }
+
+    if (!canReviewBasedOnTime) {
+      return false;
+    }
+
+    // Kiểm tra thời hạn đánh giá (30 ngày sau checkout)
     const reviewDeadline = new Date(checkoutDate);
     reviewDeadline.setDate(reviewDeadline.getDate() + 30);
 
@@ -518,20 +567,20 @@ export class ReviewsService {
 
   private simpleVietnameseToEnglish(text: string): string {
     const commonTranslations = {
-      'tốt': 'good',
-      'xấu': 'bad',
+      tốt: 'good',
+      xấu: 'bad',
       'tuyệt vời': 'excellent',
       'rất tốt': 'very good',
       'không tốt': 'not good',
       'dịch vụ': 'service',
-      'phòng': 'room',
+      phòng: 'room',
       'sạch sẽ': 'clean',
-      'bẩn': 'dirty',
+      bẩn: 'dirty',
       'nhân viên': 'staff',
       'thân thiện': 'friendly',
       'giá cả': 'price',
-      'đắt': 'expensive',
-      'rẻ': 'cheap',
+      đắt: 'expensive',
+      rẻ: 'cheap',
       'khách sạn': 'hotel',
       'ăn sáng': 'breakfast',
       'điều hòa': 'air conditioning',

@@ -44,6 +44,13 @@ export class BookingsScheduleService {
     );
 
     const now = new Date();
+    // Tạo ngày hiện tại với giờ 12:00 PM để so sánh
+    const todayNoon = dayjs()
+      .hour(12)
+      .minute(0)
+      .second(0)
+      .millisecond(0)
+      .toDate();
 
     try {
       // Tìm các booking thỏa mãn điều kiện
@@ -51,7 +58,17 @@ export class BookingsScheduleService {
         {
           status: BookingStatus.CONFIRMED,
           payment_status: PaymentStatus.PAID,
-          check_out_date: { $lt: now }, // Ngày check-out đã qua
+          $or: [
+            { check_out_date: { $lt: dayjs().startOf('day').toDate() } }, // Ngày check-out đã qua hoàn toàn
+            {
+              check_out_date: {
+                $gte: dayjs().startOf('day').toDate(),
+                $lt: dayjs().add(1, 'day').startOf('day').toDate(),
+              },
+              // Nếu là ngày check-out hôm nay và đã qua 12h trưa
+              $expr: { $lte: [todayNoon, now] },
+            },
+          ],
         },
         {
           $set: { status: BookingStatus.COMPLETED },

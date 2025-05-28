@@ -1,0 +1,233 @@
+// room_availability  - thay cho mảng availability trong rooms
+{
+    "_id": ObjectId("..."),
+    "room_id": "room789",
+    "date": ISODate("2025-04-10T00:00:00Z"),
+    "status": "available",  // available, booked, maintenance
+    "price_override": null,  // Giá đặc biệt cho ngày này (nếu có)
+    "created_at": ISODate("2025-04-07T13:00:00Z"),
+    "updated_at": ISODate("2025-04-07T13:00:00Z")
+}
+
+// users
+{
+    "_id": ObjectId("..."),
+    "user_id": "user123",  // ID người dùng
+    "name": "Nguyễn Bình Minh",
+    "email": "nbinhminh158@gmail.com",
+    "role": "user",  // Vai trò người dùng (user, admin)
+    "password": "...",
+    "phone": "0981527513",
+    "isActive": true,
+    "code_id": "48a3b8f5-8641-4ded-a012-724e1d1cbb14",  // Mã xác thực người dùng
+    "code_expired": ISODate("2025-04-07T13:00:00Z"),  // Thời gian hết hạn mã xác thực
+    "created_at": ISODate("2025-04-07T13:00:00Z"),
+    "updated_at": ISODate("2025-04-07T13:00:00Z")
+}
+
+// hotels
+{
+    "_id": ObjectId("..."),
+    "hotel_id": "hotel456",  // ID khách sạn
+    "name": "Sunrise Resort",
+    "address": "123 Trần Phú, Đà Nẵng",
+    "description": "Khách sạn 5 sao với đầy đủ tiện nghi.",
+    "rating": 4.5,
+    "amenities": ["Wi-Fi", "Bể bơi", "Gym"],
+    "location": {
+      "latitude": 16.058,
+      "longitude": 108.239
+    },
+    "images": [
+      { "url": "image_url_1", "description": "Phòng khách sạn" },
+      { "url": "image_url_2", "description": "Bể bơi" }
+    ],
+    "is_active": true,
+    "accept_deposit": true,  // Khách sạn có chấp nhận đặt cọc hay không
+    "ai_summary": {  // Tóm tắt thông tin được tạo bởi AI
+        "short_description": "Khách sạn 5 sao sang trọng với view biển tại Đà Nẵng",
+        "highlight_features": ["View biển", "Nhân viên thân thiện", "Bữa sáng ngon"],
+        "average_sentiment": 8.2,  // Điểm sentiment trung bình từ đánh giá
+        "last_updated": ISODate("2025-04-07T13:00:00Z")
+    },
+    "created_at": ISODate("2025-04-07T13:00:00Z"),
+    "updated_at": ISODate("2025-04-07T13:00:00Z")
+}
+
+// rooms
+{
+    "_id": ObjectId("..."),
+    "room_id": "room789",  // ID phòng
+    "hotel_id": "hotel456",  // ID khách sạn liên quan
+    "room_type": "Deluxe",  // Loại phòng (Standard, Deluxe...)
+    "price_per_night": 100,  // Giá mỗi đêm
+    "capacity": 2,  // Sức chứa
+    "description": "Phòng cao cấp với đầy đủ tiện nghi.",
+    "images": [
+      { "url": "image_url_1", "description": "Phòng ngủ" }
+    ],
+    "amenities": ["TV", "Minibar", "Máy điều hòa", "Bồn tắm"],  // Tiện ích trong phòng
+    "size": 35,  // Diện tích phòng (m²)
+    "max_adults": 2,  // Số lượng người lớn tối đa
+    "max_children": 1,  // Số lượng trẻ em tối đa
+    "is_active": true,  // Phòng có đang hoạt động hay không
+    "created_at": ISODate("2025-04-07T13:00:00Z"),
+    "updated_at": ISODate("2025-04-07T13:00:00Z")
+}
+
+// favorites
+{
+    "_id": ObjectId("..."),
+    "user_id": "user123",  // ID người dùng
+    "hotel_id": "hotel456",  // ID khách sạn yêu thích
+    "created_at": ISODate("2025-04-07T13:00:00Z")
+}
+
+// bookings
+{
+    "_id": ObjectId("..."),
+    "booking_id": "booking456",  // ID đặt phòng
+    "user_id": "user123",  // ID người dùng
+    "hotel_id": "hotel456",  // ID khách sạn
+    "room_id": "room789",  // ID phòng
+    "check_in_date": ISODate("2025-04-10T14:00:00Z"),  // Ngày nhận phòng
+    "check_out_date": ISODate("2025-04-12T11:00:00Z"),  // Ngày trả phòng
+    "total_amount": 500000,  // Tổng số tiền đặt phòng
+    "deposit_amount": 125000,  // Số tiền đặt cọc (25% tổng giá)
+    "deposit_status": "paid",  // Trạng thái đặt cọc (paid, unpaid)
+    "remaining_amount": 375000,  // Số tiền còn lại sau khi đặt cọc (75%)
+    "status": "pending",  // Trạng thái đặt phòng (pending, confirmed, canceled)
+    "cancellation_policy": "cancelable",  // Chính sách hủy (cancelable, non-cancelable)
+    "created_at": ISODate("2025-04-07T13:00:00Z"),
+    "updated_at": ISODate("2025-04-07T13:00:00Z"),
+    "cancelled_at": null,  // Ngày hủy phòng (nếu có)
+    "cancellation_reason": null,  // Lý do hủy phòng (nếu có)
+    "payment_due_date": ISODate("2025-04-08T14:00:00Z"),  // Hạn thanh toán 75% (2 ngày trước check-in)
+    "payment_status": "pending",  // Trạng thái thanh toán (pending, completed, failed)
+}
+
+// cancellations
+{
+    "_id": ObjectId("..."),
+    "cancellation_id": "cancel123",  // ID hủy phòng
+    "booking_id": "booking456",  // ID đặt phòng
+    "user_id": "user123",  // ID người dùng
+    "hotel_id": "hotel456",  // ID khách sạn
+    "reason": "Không thể đến vào ngày đã chọn",  // Lý do hủy phòng
+    "status": "completed",  // Trạng thái hủy phòng (pending, completed)
+    "cancellation_date": ISODate("2025-04-07T13:00:00Z"),
+    "refund_amount": 125000,  // Số tiền hoàn lại (nếu có)
+    "created_at": ISODate("2025-04-07T13:00:00Z"),
+    "updated_at": ISODate("2025-04-07T13:00:00Z")
+}
+
+// reviews
+{
+    "_id": ObjectId("..."),
+    "review_id": "review123",  // ID đánh giá
+    "hotel_id": "hotel456",  // ID khách sạn
+    "user_id": "user789",  // ID người dùng
+    "rating": 4,  // Đánh giá sao từ 0 đến 5
+    "sentiment": 7.5,  // Điểm sentiment tính từ mô hình AI (0 đến 10)
+    "sentiment_label": "Hài lòng",  // Nhãn cảm xúc (Tiêu cực, Trung lập, Hài lòng, Tuyệt vời, Hoàn hảo)
+    "review_text": "Phòng sạch sẽ và nhân viên thân thiện.",
+    "response": {  // Phản hồi từ khách sạn
+        "response_text": "Cảm ơn quý khách đã đánh giá. Chúng tôi rất vui khi quý khách hài lòng về dịch vụ.",
+        "response_by": "staff123",  // ID nhân viên phản hồi
+        "response_date": ISODate("2025-04-08T10:30:00Z")
+    },
+    "created_at": ISODate("2025-04-07T13:00:00Z"),
+    "updated_at": ISODate("2025-04-07T13:00:00Z")
+}
+// Tiêu cực: 0.0 đến 3.9
+// Trung lập: 4.0 đến 6.4
+// Hài lòng: 6.5 đến 7.9
+// Tuyệt vời: 8.0 đến 8.9
+// Hoàn hảo: 9.0 đến 10.0
+
+// payments
+{
+    "_id": ObjectId("..."),
+    "booking_id": "booking123",  // ID đặt phòng
+    "user_id": "user789",  // ID người dùng
+    "hotel_id": "hotel456",  // ID khách sạn
+    "payment_method": "full_payment",  // Phương thức thanh toán (full_payment / deposit / remaining)
+    "payment_status": "pending",  // Trạng thái thanh toán (pending / paid / cancelled)
+    "deposit_amount": 250000,  // Số tiền đặt cọc (nếu có)
+    "total_amount": 1000000,  // Tổng số tiền cần thanh toán
+    "due_date": ISODate("2025-04-09T12:00:00Z"),  // Ngày cần thanh toán 75% còn lại
+    "payment_date": null,  // Ngày thanh toán (sẽ được cập nhật khi thanh toán)
+    "cancelled": false,  // Trạng thái huỷ
+    "created_at": ISODate("2025-04-07T13:00:00Z"),
+    "updated_at": ISODate("2025-04-07T13:00:00Z")
+}
+
+// chat_sessions - Lưu trữ các phiên trò chuyện với chatbot
+{
+    "_id": ObjectId("..."),
+    "session_id": "chat123",  // ID phiên chat
+    "user_id": "user123",  // ID người dùng (có thể null nếu khách chưa đăng nhập)
+    "start_time": ISODate("2025-04-07T13:00:00Z"),
+    "end_time": null,  // Sẽ được cập nhật khi phiên kết thúc
+    "status": "active",  // active, closed
+    "context": {
+        "hotel_id": "hotel456",  // (tuỳ chọn) nếu người dùng đang tìm hiểu về khách sạn cụ thể
+        "booking_intent": true,  // Người dùng có ý định đặt phòng không
+        "preferred_dates": {  // Thông tin ngày dự kiến
+            "check_in": ISODate("2025-05-10T00:00:00Z"),
+            "check_out": ISODate("2025-05-12T00:00:00Z")
+        }
+    },
+    "created_at": ISODate("2025-04-07T13:00:00Z"),
+    "updated_at": ISODate("2025-04-07T13:00:00Z")
+}
+
+// chat_messages - Lưu trữ các tin nhắn trong phiên chat
+{
+    "_id": ObjectId("..."),
+    "session_id": "chat123",  // ID phiên chat
+    "message_id": "msg456",  // ID tin nhắn
+    "sender_type": "user",  // user hoặc bot
+    "message": "Tôi muốn đặt phòng tại Đà Nẵng vào ngày 10/05/2025",
+    "intent": "booking_inquiry",  // Ý định được nhận diện từ tin nhắn
+    "entities": [  // Các thực thể được trích xuất
+        {
+            "type": "location",
+            "value": "Đà Nẵng"
+        },
+        {
+            "type": "check_in_date",
+            "value": "2025-05-10"
+        }
+    ],
+    "timestamp": ISODate("2025-04-07T13:01:20Z"),
+    "created_at": ISODate("2025-04-07T13:01:20Z")
+}
+
+// sentiment_analysis_logs - Lưu lịch sử phân tích cảm xúc
+{
+    "_id": ObjectId("..."),
+    "review_id": "review123",  // ID đánh giá liên quan
+    "original_text": "Phòng sạch sẽ và nhân viên thân thiện.",
+    "processed_text": "Phòng sạch sẽ và nhân viên thân thiện.",  // Văn bản sau khi tiền xử lý
+    "sentiment_score": 7.5,  // Điểm sentiment từ mô hình (0-10)
+    "sentiment_label": "Hài lòng",  // Nhãn cảm xúc
+    "confidence": 0.85,  // Độ tin cậy của kết quả
+    "model_version": "sentiment-vi-v1.0",  // Phiên bản mô hình sử dụng
+    "processing_time_ms": 120,  // Thời gian xử lý (ms)
+    "keywords": ["phòng sạch", "nhân viên thân thiện"],  // Từ khóa chính trích xuất
+    "created_at": ISODate("2025-04-07T13:00:00Z")
+}
+
+// ai_feedback - Thu thập phản hồi để cải thiện mô hình AI
+{
+    "_id": ObjectId("..."),
+    "feedback_id": "fb789",
+    "user_id": "user123",  // ID người dùng (nếu đã đăng nhập)
+    "ai_response_id": "chat123_msg456",  // ID phản hồi AI (có thể là chat message ID)
+    "feedback_type": "thumbs_down",  // thumbs_up, thumbs_down
+    "feedback_text": "Chatbot không hiểu câu hỏi của tôi về chính sách huỷ phòng",
+    "created_at": ISODate("2025-04-07T13:05:00Z")
+}
+
+

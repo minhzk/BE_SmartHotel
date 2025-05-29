@@ -31,6 +31,14 @@ RUN npm ci --only=production
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
 
+# Copy source files (including templates)
+COPY --from=builder /app/src ./src
+
+# Debug log
+RUN echo "=== FILES COPIED ===" && \
+    ls -la /app/ && \
+    ls -la /app/src/mail/templates/ 2>/dev/null || echo "No templates"
+
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nestjs -u 1001

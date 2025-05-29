@@ -105,8 +105,6 @@ tmp/
 *.sqlite3
 
 # Docker
-Dockerfile
-.dockerignore
 docker-compose*.yml
 
 # Testing

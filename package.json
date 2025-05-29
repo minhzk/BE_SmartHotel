@@ -67,7 +67,6 @@
     "rimraf": "^3.0.2"
   },
   "devDependencies": {
-    "@nestjs/cli": "10.4.2",
     "@nestjs/schematics": "10.1.3",
     "@nestjs/testing": "10.3.10",
     "@types/bcrypt": "5.0.2",
@@ -91,8 +90,7 @@
     "ts-jest": "29.2.3",
     "ts-loader": "9.5.1",
     "ts-node": "10.9.2",
-    "tsconfig-paths": "4.2.0",
-    "typescript": "5.5.4"
+    "tsconfig-paths": "4.2.0"
   },
   "jest": {
     "moduleFileExtensions": [

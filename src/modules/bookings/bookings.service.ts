@@ -215,7 +215,7 @@ export class BookingsService {
 
     // Kiểm tra quyền, nếu không phải admin thì chỉ xem booking của mình
     const user = await this.userModel.findById(userId);
-    if (user && user.role !== 'admin') {
+    if (user && user.role !== 'ADMIN') {
       customFilter.user_id = new mongoose.Types.ObjectId(userId);
     }
 

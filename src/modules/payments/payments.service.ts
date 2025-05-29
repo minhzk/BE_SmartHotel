@@ -146,7 +146,7 @@ export class PaymentsService {
 
     // Thêm filter theo userId nếu không phải admin
     const user = await this.userModel.findById(userId);
-    if (user && user.role !== 'admin') {
+    if (user && user.role !== 'ADMIN') {
       customFilter.user_id = new mongoose.Types.ObjectId(userId);
     }
 

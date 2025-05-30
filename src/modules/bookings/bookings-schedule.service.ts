@@ -43,14 +43,8 @@ export class BookingsScheduleService {
       'Đang kiểm tra các booking cần được chuyển sang trạng thái hoàn thành...',
     );
 
-    const now = new Date();
-    // Tạo ngày hiện tại với giờ 12:00 PM để so sánh
-    const todayNoon = dayjs()
-      .hour(12)
-      .minute(0)
-      .second(0)
-      .millisecond(0)
-      .toDate();
+    const now = dayjs.utc(); // Sử dụng UTC
+    const todayNoon = dayjs.utc().hour(12).minute(0).second(0).millisecond(0);
 
     try {
       // Tìm các booking thỏa mãn điều kiện
@@ -59,14 +53,14 @@ export class BookingsScheduleService {
           status: BookingStatus.CONFIRMED,
           payment_status: PaymentStatus.PAID,
           $or: [
-            { check_out_date: { $lt: dayjs().startOf('day').toDate() } }, // Ngày check-out đã qua hoàn toàn
+            { check_out_date: { $lt: dayjs.utc().startOf('day').toDate() } }, // Ngày check-out đã qua hoàn toàn (UTC)
             {
               check_out_date: {
-                $gte: dayjs().startOf('day').toDate(),
-                $lt: dayjs().add(1, 'day').startOf('day').toDate(),
+                $gte: dayjs.utc().startOf('day').toDate(),
+                $lt: dayjs.utc().add(1, 'day').startOf('day').toDate(),
               },
-              // Nếu là ngày check-out hôm nay và đã qua 12h trưa
-              $expr: { $lte: [todayNoon, now] },
+              // Nếu là ngày check-out hôm nay và đã qua 12h trưa (UTC)
+              $expr: { $lte: [todayNoon.toDate(), now.toDate()] },
             },
           ],
         },

@@ -74,12 +74,23 @@ export class ReviewsController {
     @Query() query: string,
     @Query('current') current: string,
     @Query('pageSize') pageSize: string,
+    @Query('dateRange') dateRange: string,
+    @Query('sentiment_label') sentiment_label: string,
+    @Query('rating') rating: string,
+    @Query('search') search: string,
   ) {
-    return this.reviewsService.findByUser(
+    const filters = {
+      dateRange,
+      sentiment_label,
+      rating,
+      search,
+    };
+    return this.reviewsService.findAll(
       req.user._id,
       query,
       +current,
       +pageSize,
+      filters,
     );
   }
 

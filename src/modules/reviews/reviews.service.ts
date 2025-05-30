@@ -422,8 +422,8 @@ export class ReviewsService {
     userId: string,
     hotelId: string,
   ): Promise<boolean> {
-    // Lấy thời gian hiện tại
-    const now = new Date();
+    // Lấy thời gian hiện tại theo UTC+7
+    const now = new Date(Date.now() + 7 * 60 * 60 * 1000);
 
     // Kiểm tra xem người dùng đã đánh giá khách sạn này chưa
     const existingReview = await this.reviewModel.findOne({

@@ -82,6 +82,57 @@ export class BookingsScheduleService {
         this.logger.log(
           `Đã cập nhật ${result.modifiedCount} booking sang trạng thái COMPLETED`,
         );
+
+        // Gửi thông báo cho các booking vừa chuyển sang COMPLETED để nhắc đánh giá
+        try {
+          // Lấy danh sách các booking vừa được cập nhật sang COMPLETED
+          const completedBookings = await this.bookingModel.find({
+            status: BookingStatus.COMPLETED,
+            updatedAt: { $gte: dayjs().subtract(1, 'hour').toDate() }, // chỉ lấy các booking vừa cập nhật trong 1 giờ qua
+          });
+
+          // Lấy thông tin khách sạn
+          const hotelIds = [
+            ...new Set(completedBookings.map((b) => b.hotel_id.toString())),
+          ];
+          const hotels = await this.connection.db
+            .collection('hotels')
+            .find({
+              _id: {
+                $in: hotelIds.map((id) => new mongoose.Types.ObjectId(id)),
+              },
+            })
+            .toArray();
+
+          const hotelMap = hotels.reduce((map, hotel) => {
+            map[hotel._id.toString()] = hotel.name;
+            return map;
+          }, {});
+
+          for (const booking of completedBookings) {
+            try {
+              const hotelName =
+                hotelMap[booking.hotel_id.toString()] || 'Khách sạn';
+              await this.notificationsService.createReviewReminderNotification?.(
+                booking.user_id.toString(),
+                booking.booking_id,
+                hotelName,
+              );
+              this.logger.log(
+                `Đã gửi thông báo nhắc đánh giá cho booking: ${booking.booking_id}`,
+              );
+            } catch (notifyError) {
+              this.logger.error(
+                `Lỗi khi gửi thông báo nhắc đánh giá cho booking ${booking.booking_id}: ${notifyError.message}`,
+              );
+            }
+          }
+        } catch (notifyAllError) {
+          this.logger.error(
+            'Lỗi khi gửi thông báo nhắc đánh giá:',
+            notifyAllError,
+          );
+        }
       } else {
         this.logger.debug('Không có booking nào cần cập nhật');
       }

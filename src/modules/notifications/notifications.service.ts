@@ -308,7 +308,27 @@ export class NotificationsService {
         action_url: `/bookings/payment/${bookingId}?type=remaining`,
       },
     });
-    
+
+    return notification;
+  }
+
+  // Thêm phương thức gửi thông báo nhắc đánh giá
+  async createReviewReminderNotification(
+    userId: string,
+    bookingId: string,
+    hotelName: string,
+  ) {
+    const notification = await this.create({
+      user_id: userId,
+      type: NotificationType.REVIEW_REMINDER,
+      title: 'Hãy đánh giá trải nghiệm của bạn',
+      message: `Bạn vừa hoàn thành kỳ nghỉ tại ${hotelName}. Hãy để lại đánh giá để giúp khách sạn cải thiện dịch vụ!`,
+      data: {
+        booking_id: bookingId,
+        hotel_name: hotelName,
+        action_url: `/bookings/${bookingId}/review`,
+      },
+    });
 
     return notification;
   }

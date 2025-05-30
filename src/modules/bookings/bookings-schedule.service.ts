@@ -43,9 +43,14 @@ export class BookingsScheduleService {
       'Đang kiểm tra các booking cần được chuyển sang trạng thái hoàn thành...',
     );
 
-    const now = dayjs.utc(); // Sử dụng UTC
-    const todayNoon = dayjs.utc().hour(12).minute(0).second(0).millisecond(0);
-
+    // Sử dụng giờ Việt Nam (UTC+7)
+    const now = dayjs().utcOffset(7);
+    const todayNoon = dayjs()
+      .utcOffset(7)
+      .hour(12)
+      .minute(0)
+      .second(0)
+      .millisecond(0);
     try {
       // Tìm các booking thỏa mãn điều kiện
       const result = await this.bookingModel.updateMany(
@@ -53,13 +58,17 @@ export class BookingsScheduleService {
           status: BookingStatus.CONFIRMED,
           payment_status: PaymentStatus.PAID,
           $or: [
-            { check_out_date: { $lt: dayjs.utc().startOf('day').toDate() } }, // Ngày check-out đã qua hoàn toàn (UTC)
             {
               check_out_date: {
-                $gte: dayjs.utc().startOf('day').toDate(),
-                $lt: dayjs.utc().add(1, 'day').startOf('day').toDate(),
+                $lt: dayjs().utcOffset(7).startOf('day').toDate(),
               },
-              // Nếu là ngày check-out hôm nay và đã qua 12h trưa (UTC)
+            }, // Ngày check-out đã qua hoàn toàn (VN)
+            {
+              check_out_date: {
+                $gte: dayjs().utcOffset(7).startOf('day').toDate(),
+                $lt: dayjs().utcOffset(7).add(1, 'day').startOf('day').toDate(),
+              },
+              // Nếu là ngày check-out hôm nay và đã qua 12h trưa (VN)
               $expr: { $lte: [todayNoon.toDate(), now.toDate()] },
             },
           ],
@@ -85,7 +94,7 @@ export class BookingsScheduleService {
    * Task chạy hàng ngày để gửi thông báo nhắc nhở check-in
    * Gửi nhắc nhở cho những booking sắp check-in trong 1 ngày
    */
-  @Cron(CronExpression.EVERY_DAY_AT_8AM)
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async sendCheckInReminders() {
     this.logger.log('Đang gửi thông báo nhắc nhở check-in...');
 

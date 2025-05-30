@@ -32,7 +32,7 @@ export class HotelsService {
   }
 
   async findAll(query: string, current: number, pageSize: number) {
-    const { filter, sort } = aqp(query);
+    const { filter, sort: aqpSort } = aqp(query);
     if (filter.current) delete filter.current;
     if (filter.pageSize) delete filter.pageSize;
 
@@ -193,6 +193,23 @@ export class HotelsService {
           results: [],
         };
       }
+    }
+
+    // Handle sortBy param from query string
+    let sort = aqpSort || {};
+    if (filter.sortBy) {
+      const lastUnderscore = filter.sortBy.lastIndexOf('_');
+      let field = filter.sortBy;
+      let order = 'desc';
+      if (lastUnderscore > 0) {
+        field = filter.sortBy.substring(0, lastUnderscore);
+        order = filter.sortBy.substring(lastUnderscore + 1);
+      }
+      if (field) {
+        sort = {};
+        sort[field] = order === 'asc' ? 1 : -1;
+      }
+      delete filter.sortBy;
     }
 
     if (!current) current = 1;

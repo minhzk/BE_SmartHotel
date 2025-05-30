@@ -41,6 +41,7 @@ export class HotelsController {
     @Query('children') children: string,
     @Query('check_in') checkIn: string,
     @Query('check_out') checkOut: string,
+    @Query('sortBy') sortBy: string,
   ) {
     return this.hotelsService.findAll(query, +current, +pageSize);
   }

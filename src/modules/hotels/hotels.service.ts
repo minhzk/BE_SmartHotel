@@ -36,10 +36,26 @@ export class HotelsService {
     if (filter.current) delete filter.current;
     if (filter.pageSize) delete filter.pageSize;
 
-    // Handle combined search for both name and city
+    // Handle combined search for both name and city (không dấu)
     if (filter.search) {
-      const searchRegex = { $regex: filter.search, $options: 'i' };
-      filter.$or = [{ name: searchRegex }, { city: searchRegex }];
+      // Loại bỏ dấu tiếng Việt khỏi filter.search và thay thế mọi ký tự không phải chữ/số/thường bằng khoảng trắng
+      const removeVietnameseTones = (str: string) =>
+        str
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/đ/g, 'd')
+          .replace(/Đ/g, 'D')
+          .replace(/[^a-zA-Z0-9\s]/g, ''); // loại bỏ ký tự đặc biệt như ô, ê, â, ...
+
+      const searchNoDiacritics = removeVietnameseTones(
+        filter.search,
+      ).toLowerCase();
+
+      filter.$or = [
+        { name: { $regex: searchNoDiacritics, $options: 'i' } },
+        { city: { $regex: searchNoDiacritics, $options: 'i' } },
+      ];
+
       delete filter.search;
     }
 

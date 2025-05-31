@@ -70,6 +70,14 @@ export class HotelsService {
       filter.city = { $regex: filter.city, $options: 'i' };
     }
 
+    // Handle is_active filter
+    if (filter.is_active !== undefined) {
+      if (filter.is_active === 'true' || filter.is_active === true)
+        filter.is_active = true;
+      else if (filter.is_active === 'false' || filter.is_active === false)
+        filter.is_active = false;
+    }
+
     // Handle ratings filter
     if (filter.rating) {
       // Nếu rating là 5 thì chỉ lấy đúng rating = 5

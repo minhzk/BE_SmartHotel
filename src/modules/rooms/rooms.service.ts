@@ -45,10 +45,35 @@ export class RoomsService {
     if (filter.current) delete filter.current;
     if (filter.pageSize) delete filter.pageSize;
 
+    // Xử lý filter cho các trường đặc biệt
+    if (filter.hotel_id) {
+      filter.hotel_id = filter.hotel_id;
+    }
+    if (filter.room_type) {
+      filter.room_type = filter.room_type;
+    }
+    if (filter.is_active !== undefined) {
+      if (filter.is_active === 'true' || filter.is_active === true)
+        filter.is_active = true;
+      else if (filter.is_active === 'false' || filter.is_active === false)
+        filter.is_active = false;
+    }
+    if (filter.is_bookable !== undefined) {
+      if (filter.is_bookable === 'true' || filter.is_bookable === true)
+        filter.is_bookable = true;
+      else if (filter.is_bookable === 'false' || filter.is_bookable === false)
+        filter.is_bookable = false;
+    }
+    // Tìm kiếm theo tên phòng (search)
+    if (filter.search) {
+      filter.name = { $regex: filter.search, $options: 'i' };
+      delete filter.search;
+    }
+
     if (!current) current = 1;
     if (!pageSize) pageSize = 10;
 
-    const totalItems = (await this.roomModel.find(filter)).length;
+    const totalItems = await this.roomModel.countDocuments(filter);
     const totalPages = Math.ceil(totalItems / pageSize);
     const skip = (current - 1) * pageSize;
 

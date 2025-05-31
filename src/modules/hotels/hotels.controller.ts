@@ -26,24 +26,15 @@ export class HotelsController {
   @Get()
   @Public()
   @ResponseMessage('Fetch hotels successfully')
-  async findAll(
-    @Query() query: string,
-    @Query('current') current: string,
-    @Query('pageSize') pageSize: string,
-    @Query('search') search: string,
-    @Query('name') name: string,
-    @Query('city') city: string,
-    @Query('rating') rating: string,
-    @Query('min_price') minPrice: string,
-    @Query('max_price') maxPrice: string,
-    @Query('capacity') capacity: string,
-    @Query('adults') adults: string,
-    @Query('children') children: string,
-    @Query('check_in') checkIn: string,
-    @Query('check_out') checkOut: string,
-    @Query('sortBy') sortBy: string,
-  ) {
-    return this.hotelsService.findAll(query, +current, +pageSize);
+  async findAll(@Query() query: any) {
+    // Nếu có groupBy=city thì trả về số lượng khách sạn theo từng city
+    if (query.groupBy === 'city') {
+      const cityCounts = await this.hotelsService.countHotelsByCity();
+      return { cityCounts };
+    }
+    const current = query.current ? +query.current : 1;
+    const pageSize = query.pageSize ? +query.pageSize : 10;
+    return this.hotelsService.findAll(query, current, pageSize);
   }
 
   @Get(':id')

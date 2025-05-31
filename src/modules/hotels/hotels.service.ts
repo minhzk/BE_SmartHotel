@@ -369,4 +369,22 @@ export class HotelsService {
       }
     }
   }
+
+  async countHotelsByCity() {
+    // Đếm số lượng khách sạn theo từng city
+    const result = await this.hotelModel.aggregate([
+      {
+        $group: {
+          _id: '$city',
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+    // Chuyển về object { city: count }
+    const cityCounts: Record<string, number> = {};
+    result.forEach((item) => {
+      cityCounts[item._id] = item.count;
+    });
+    return cityCounts;
+  }
 }

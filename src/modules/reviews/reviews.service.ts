@@ -114,6 +114,13 @@ export class ReviewsService {
 
     // Nếu không phải admin thì chỉ xem review của mình
     // (Nếu muốn lọc theo user_id, bổ sung logic kiểm tra quyền ở đây)
+    if (userId) {
+      // Lấy user để kiểm tra quyền
+      const user = await this.userModel.findById(userId);
+      if (user && user.role !== 'ADMIN') {
+        customFilter.user_id = new mongoose.Types.ObjectId(userId);
+      }
+    }
 
     // Lọc theo khoảng thời gian tạo review
     if (filters?.dateRange) {

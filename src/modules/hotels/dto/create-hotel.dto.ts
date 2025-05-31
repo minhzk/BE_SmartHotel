@@ -49,6 +49,18 @@ class AISummaryDto {
   last_updated: Date;
 }
 
+export enum CityEnum {
+  HA_NOI = 'ha noi',
+  HO_CHI_MINH = 'ho chi minh',
+  DA_NANG = 'da nang',
+  NHA_TRANG = 'nha trang',
+  DA_LAT = 'da lat',
+  PHU_QUOC = 'phu quoc',
+  HUE = 'hue',
+  QUY_NHON = 'quy nhon',
+  VUNG_TAU = 'vung tau',
+}
+
 export class CreateHotelDto {
   @IsString()
   @IsNotEmpty()
@@ -60,7 +72,8 @@ export class CreateHotelDto {
 
   @IsString()
   @IsNotEmpty()
-  city: string;
+  // Sử dụng enum cho city
+  city: CityEnum;
 
   @IsString()
   @IsNotEmpty()

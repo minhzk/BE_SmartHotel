@@ -72,9 +72,16 @@ export class HotelsService {
 
     // Handle ratings filter
     if (filter.rating) {
+      // Nếu rating là 5 thì chỉ lấy đúng rating = 5
+      // Nếu rating là 4 thì lấy từ 4 đến dưới 5 (4 <= rating < 5)
+      // Nếu rating là 3 thì lấy từ 3 đến dưới 4, v.v.
       const rating = Number(filter.rating);
       if (!isNaN(rating) && rating >= 1 && rating <= 5) {
-        filter.rating = { $gte: Math.floor(rating) };
+        if (rating === 5) {
+          filter.rating = 5;
+        } else {
+          filter.rating = { $gte: rating, $lt: rating + 1 };
+        }
       } else {
         delete filter.rating;
       }

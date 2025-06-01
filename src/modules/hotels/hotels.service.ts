@@ -38,6 +38,7 @@ export class HotelsService {
 
     // Handle combined search for both name and city (không dấu)
     if (filter.search) {
+      console.log('Search query:', filter.search);
       // Loại bỏ dấu tiếng Việt khỏi filter.search và thay thế mọi ký tự không phải chữ/số/thường bằng khoảng trắng
       const removeVietnameseTones = (str: string) =>
         str
@@ -51,10 +52,14 @@ export class HotelsService {
         filter.search,
       ).toLowerCase();
 
+      console.log('Search query without diacritics:', searchNoDiacritics);
+
       filter.$or = [
         { name: { $regex: searchNoDiacritics, $options: 'i' } },
         { city: { $regex: searchNoDiacritics, $options: 'i' } },
       ];
+
+      console.log('Filter after search:', filter);
 
       delete filter.search;
     }

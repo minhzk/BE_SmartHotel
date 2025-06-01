@@ -14,6 +14,15 @@ import {
   RoomStatus,
 } from '../room-availability/schemas/room-availability.schema';
 
+function removeVietnameseTones(str: string) {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .replace(/[^a-zA-Z0-9\s]/g, '');
+}
+
 @Injectable()
 export class HotelsService {
   constructor(
@@ -40,14 +49,6 @@ export class HotelsService {
     if (filter.search) {
       console.log('Search query:', filter.search);
       // Loại bỏ dấu tiếng Việt khỏi filter.search và thay thế mọi ký tự không phải chữ/số/thường bằng khoảng trắng
-      const removeVietnameseTones = (str: string) =>
-        str
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .replace(/đ/g, 'd')
-          .replace(/Đ/g, 'D')
-          .replace(/[^a-zA-Z0-9\s]/g, ''); // loại bỏ ký tự đặc biệt như ô, ê, â, ...
-
       const searchNoDiacritics = removeVietnameseTones(
         filter.search,
       ).toLowerCase();
@@ -56,17 +57,25 @@ export class HotelsService {
 
       filter.$or = [
         { name: { $regex: searchNoDiacritics, $options: 'i' } },
+        { name: { $regex: filter.search, $options: 'i' } },
         { city: { $regex: searchNoDiacritics, $options: 'i' } },
+        { city: { $regex: filter.search, $options: 'i' } },
       ];
 
-      console.log('Filter after search:', filter);
+      console.log('Filter after search:', JSON.stringify(filter, null, 2));
 
       delete filter.search;
     }
 
     // Handle search by name
     if (filter.name) {
-      filter.name = { $regex: filter.name, $options: 'i' }; // Case-insensitive search
+      const nameNoDiacritics = removeVietnameseTones(filter.name).toLowerCase();
+      // Tìm kiếm theo cả tên có dấu và không dấu
+      filter.$or = [
+        { name: { $regex: filter.name, $options: 'i' } },
+        { name: { $regex: nameNoDiacritics, $options: 'i' } },
+      ];
+      delete filter.name;
     }
 
     // Handle search by city

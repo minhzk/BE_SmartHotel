@@ -29,6 +29,32 @@ export class ChatbotService {
   private readonly openaiModel: string;
   private readonly openaiApiUrl = 'https://api.openai.com/v1/chat/completions';
 
+  // Mapping tiện ích từ value sang label tiếng Việt
+  private readonly amenityMapping = {
+    wifi: 'WiFi',
+    pool: 'Hồ bơi',
+    gym: 'Phòng gym',
+    restaurant: 'Nhà hàng',
+    parking: 'Bãi đỗ xe',
+    spa: 'Spa',
+    ac: 'Điều hòa',
+    room_service: 'Dịch vụ phòng',
+    business_center: 'Trung tâm thương mại',
+    laundry: 'Giặt ủi',
+    meeting_room: 'Phòng họp',
+    bar: 'Quầy bar',
+    breakfast: 'Bữa sáng',
+    airport_shuttle: 'Đưa đón sân bay',
+    '24h_reception': 'Lễ tân 24h',
+    elevator: 'Thang máy',
+    smoking_area: 'Khu vực hút thuốc',
+    non_smoking_rooms: 'Phòng không hút thuốc',
+    kids_club: 'Khu vui chơi trẻ em',
+    safety_box: 'Két an toàn',
+    medical_service: 'Dịch vụ y tế',
+    other: 'Tiện ích khác',
+  };
+
   constructor(
     @InjectModel(ChatSession.name)
     private chatSessionModel: Model<ChatSession>,
@@ -547,40 +573,10 @@ export class ChatbotService {
 
       // Kiểm tra xem user có hỏi về khách sạn cụ thể không (không phải tham chiếu)
       const directHotelPattern =
-        /(?:khách sạn|ks)\s*([\p{L}\d\s\-\.]+?)(?:\s+(?:thông tin|chi tiết|giá|địa chỉ|tiện ích|phòng|loại|gì)|[?]|$)/iu;
+        /(?:khách sạn|ks|ksan|k san)\s+(?!được|có|tại|nằm|ở|trong|của|như|là|thuộc|với|và|hoặc|nào|gì)([\p{L}\d\s\-\.]+?)(?:\s+(?:thông tin|chi tiết|giá|địa chỉ|tiện ích|phòng|loại|gì)|[?]|$)/iu;
       const directHotelMatch = normalizedUserMsg.match(directHotelPattern);
 
-      // Kiểm tra xem có phải câu hỏi về khách sạn theo thành phố không
-      const cityQuestionPatterns = [
-        /(?:các|những)?\s*khách sạn\s+(?:ở|tại|trong)\s+/i,
-        /khách sạn\s+nào\s+(?:ở|tại|trong)\s+/i,
-        /có\s+(?:những|các)?\s*khách sạn\s+(?:nào\s+)?(?:ở|tại|trong)\s+/i,
-        /danh sách\s+khách sạn\s+(?:ở|tại|trong)\s+/i,
-      ];
-
-      // Kiểm tra xem có phải câu hỏi về khách sạn theo tiêu chí không (đánh giá, giá cả, loại...)
-      const criteriaQuestionPatterns = [
-        /(?:các|những)?\s*khách sạn\s+(?:được\s+)?(?:đánh giá|tốt|cao|nổi tiếng|sang trọng|chất lượng)/i,
-        /khách sạn\s+(?:nào\s+)?(?:được\s+)?(?:đánh giá|tốt|cao|nổi tiếng|sang trọng|chất lượng)/i,
-        /(?:các|những)?\s*khách sạn\s+(?:có\s+)?giá\s+(?:từ|khoảng|rẻ|cao|thấp)/i,
-        /(?:các|những)?\s*khách sạn\s+\d+\s*sao/i,
-        /danh sách\s+khách sạn\s+(?:tốt|đánh giá|cao|nổi tiếng)/i,
-      ];
-
-      const isCityQuestion = cityQuestionPatterns.some((pattern) =>
-        pattern.test(normalizedUserMsg),
-      );
-
-      const isCriteriaQuestion = criteriaQuestionPatterns.some((pattern) =>
-        pattern.test(normalizedUserMsg),
-      );
-
-      if (
-        directHotelMatch &&
-        !hasContextualReference &&
-        !isCityQuestion &&
-        !isCriteriaQuestion
-      ) {
+      if (directHotelMatch && !hasContextualReference) {
         const hotelName = directHotelMatch[1].trim();
         this.logger.log(
           `✓ Phát hiện câu hỏi về khách sạn cụ thể: "${hotelName}"`,
@@ -653,13 +649,11 @@ export class ChatbotService {
         /\b(tp\s*\.?\s*hồ chí minh|tp\s*\.?\s*hcm|hcm|sài gòn)\b/iu,
 
         // Pattern 3: Tìm trong cấu trúc "khách sạn ở/tại <thành phố>"
-        /khách sạn (?:ở|tại|ở tại|của|trong) ([\p{L}\s]+?)(?:[,.;:!?]|$|\s(?:và|hoặc|như|là))/iu,
+        /khách sạn (?:ở|tại|ở tại|của|trong) ([\p{L}\s]+?)(?:[,.;:!?]|$|\s(?:và|hoặc|như|là|thuộc|với|và|hoặc|nào|gì))/iu,
       ];
 
       // Tìm trong cả userMessage và originalMessage
-      const searchTexts = [normalizedUserMsg].filter(
-        (text) => text,
-      );
+      const searchTexts = [normalizedUserMsg].filter((text) => text);
 
       // Thử tìm thành phố trong các message
       for (const text of searchTexts) {
@@ -983,11 +977,80 @@ export class ChatbotService {
       // Khách sạn theo khoảng giá - Tìm kiếm trong cả userMessage và originalMessage
       let priceMatch = null;
 
-      // Tìm kiếm trong cả hai nguồn tin nhắn
-      for (const text of searchTexts) {
-        const match = text.match(
-          /khách sạn (?:có )?giá (?:từ|khoảng) (\d+)(?:\s*(?:đến|tới|-)?\s*(\d+))?/i,
+      // Kiểm tra nếu đang có context về khách sạn cụ thể và hỏi về giá
+      if (
+        context?.current_hotel &&
+        (normalizedUserMsg.includes('giá') ||
+          normalizedUserMsg.includes('bao nhiêu') ||
+          normalizedUserMsg.includes('cost') ||
+          normalizedUserMsg.includes('price'))
+      ) {
+        this.logger.log(
+          `✓ Phát hiện câu hỏi về giá trong context khách sạn: ${context.current_hotel.name}`,
         );
+
+        try {
+          const hotelDetails = await this.chatbotDataService.getHotelDetails(
+            context.current_hotel.id,
+          );
+
+          if (hotelDetails) {
+            const rooms = await this.chatbotDataService.getHotelRooms(
+              context.current_hotel.id,
+            );
+
+            if (rooms.length > 0) {
+              const roomInfo = rooms
+                .map(
+                  (r) =>
+                    `- ${r.name}: ${r.price_per_night?.toLocaleString()} VND/đêm`,
+                )
+                .join('\n');
+
+              return `Bảng giá phòng tại khách sạn ${hotelDetails.name}:\n${roomInfo}`;
+            }
+          }
+        } catch (error) {
+          this.logger.error(
+            `Lỗi khi lấy giá phòng từ context: ${error.message}`,
+          );
+        }
+      }
+
+      // Tìm kiếm trong cả hai nguồn tin nhắn với nhiều pattern khác nhau
+      for (const text of searchTexts) {
+        // Pattern 1: "khách sạn có giá từ X"
+        let match = text.match(
+          /khách sạn (?:có )?(?:mức )?giá (?:từ|khoảng|cả) (\d+)(?:\s*(?:đến|tới|-)?\s*(\d+))?/i,
+        );
+
+        // Pattern 2: "các khách sạn có mức giá từ X"
+        if (!match) {
+          match = text.match(
+            /(?:các|những) khách sạn (?:có|với) (?:mức )?giá (?:từ|khoảng|cả) (\d+)(?:\s*(?:đến|tới|-)?\s*(\d+))?/i,
+          );
+        }
+
+        // Pattern 3: "khách sạn giá từ X"
+        if (!match) {
+          match = text.match(
+            /khách sạn (?:mức )?giá (?:từ|khoảng|cả) (\d+)(?:\s*(?:đến|tới|-)?\s*(\d+))?/i,
+          );
+        }
+
+        // Pattern 4: "tìm khách sạn giá từ X"
+        if (!match) {
+          match = text.match(
+            /(?:tìm|tìm kiếm|cần|muốn) (?:các |những )?khách sạn (?:có )?(?:mức )?giá (?:từ|khoảng|cả) (\d+)(?:\s*(?:đến|tới|-)?\s*(\d+))?/i,
+          );
+        }
+
+        // Pattern 5: "giá từ X khách sạn"
+        if (!match) {
+          match = text.match(
+            /(?:mức )?giá (?:từ|khoảng|cả) (\d+)(?:\s*(?:đến|tới|-)?\s*(\d+))? (?:các |những )?khách sạn/i,
+          );
+        }
 
         if (match) {
           priceMatch = match;
@@ -997,6 +1060,8 @@ export class ChatbotService {
           break;
         }
       }
+
+      // Nếu có thông tin khoảng giá, tìm khách sạn theo khoảng giá
       if (priceMatch) {
         // Thông minh hơn khi xử lý giá - tự động phát hiện đơn vị
         let minPrice = parseInt(priceMatch[1], 10);
@@ -1010,11 +1075,10 @@ export class ChatbotService {
           }
         }
 
-        // Nếu không có giá tối đa, thiết lập giá tối đa là gấp 3 lần giá tối thiểu
-        if (!maxPrice) maxPrice = minPrice * 3;
-
         this.logger.log(
-          `✓ Phát hiện yêu cầu tìm khách sạn theo khoảng giá: ${minPrice.toLocaleString()} - ${maxPrice.toLocaleString()} VND`,
+          maxPrice
+            ? `✓ Phát hiện yêu cầu tìm khách sạn theo khoảng giá: ${minPrice.toLocaleString()} - ${maxPrice.toLocaleString()} VND`
+            : `✓ Phát hiện yêu cầu tìm khách sạn giá từ: ${minPrice.toLocaleString()} VND trở lên`,
         );
 
         const hotels = await this.chatbotDataService.getHotelsByPriceRange(
@@ -1023,7 +1087,9 @@ export class ChatbotService {
         );
 
         this.logger.log(
-          `Tìm thấy ${hotels.length} khách sạn trong khoảng giá ${minPrice.toLocaleString()} - ${maxPrice.toLocaleString()} VND`,
+          maxPrice
+            ? `Tìm thấy ${hotels.length} khách sạn trong khoảng giá ${minPrice.toLocaleString()} - ${maxPrice.toLocaleString()} VND`
+            : `Tìm thấy ${hotels.length} khách sạn từ ${minPrice.toLocaleString()} VND trở lên`,
         );
 
         if (hotels.length > 0) {
@@ -1034,7 +1100,11 @@ export class ChatbotService {
             )
             .join('\n');
 
-          return `Dưới đây là những khách sạn trong khoảng giá bạn yêu cầu:\n${hotelInfo}`;
+          const priceRangeText = maxPrice
+            ? `trong khoảng giá ${minPrice.toLocaleString()} - ${maxPrice.toLocaleString()} VND`
+            : `từ ${minPrice.toLocaleString()} VND trở lên`;
+
+          return `Dưới đây là top 5 khách sạn có giá ${priceRangeText}:\n${hotelInfo}`;
         }
       }
 
@@ -1090,13 +1160,16 @@ export class ChatbotService {
         normalizedUserMsg.toLowerCase().includes('amenities')
       ) {
         // Nếu đang nói về một khách sạn cụ thể
-        if (context?.hotel_id) {
+        if (context?.current_hotel) {
           const hotelDetails = await this.chatbotDataService.getHotelDetails(
-            context.hotel_id,
+            context.current_hotel.id,
           );
 
           if (hotelDetails && hotelDetails.amenities) {
-            return `Khách sạn ${hotelDetails.name} cung cấp các tiện ích sau:\n- ${hotelDetails.amenities.join('\n- ')}`;
+            const formattedAmenities = this.formatAmenities(
+              hotelDetails.amenities,
+            );
+            return `Khách sạn ${hotelDetails.name} cung cấp các tiện ích sau:\n- ${formattedAmenities.join('\n- ')}`;
           }
         } else {
           return `Các tiện ích phổ biến tại khách sạn của chúng tôi bao gồm:\n- WiFi miễn phí\n- Bữa sáng\n- Hồ bơi\n- Phòng tập gym\n- Dịch vụ đưa đón sân bay\n- Dịch vụ phòng 24/7\n\nMỗi khách sạn có thể có các tiện ích khác nhau. Bạn quan tâm đến khách sạn nào cụ thể?`;
@@ -1248,7 +1321,7 @@ THÔNG TIN HỆ THỐNG:
     }
 
     // Add hotel-specific information
-    if (context?.hotel_id) {
+    if (context?.current_hotel) {
       basePrompt += `\n\nNgười dùng đang quan tâm đến khách sạn cụ thể của chúng tôi. Vui lòng tập trung vào thông tin của khách sạn này.`;
     }
 
@@ -1363,6 +1436,11 @@ THÔNG TIN HỆ THỐNG:
     return contextUpdate;
   }
 
+  // Phương thức chuyển đổi danh sách tiện ích
+  private formatAmenities(amenities: string[]): string[] {
+    return amenities.map((amenity) => this.amenityMapping[amenity] || amenity);
+  }
+
   // Phương thức mới để xử lý câu hỏi cụ thể về khách sạn đã xác định
   private async handleSpecificHotelQuestion(
     normalizedUserMsg: string,
@@ -1411,7 +1489,10 @@ THÔNG TIN HỆ THỐNG:
           hotel._id.toString(),
         );
         if (hotelDetails && hotelDetails.amenities) {
-          return `Khách sạn ${hotel.name} cung cấp các tiện ích sau:\n- ${hotelDetails.amenities.join('\n- ')}`;
+          const formattedAmenities = this.formatAmenities(
+            hotelDetails.amenities,
+          );
+          return `Khách sạn ${hotel.name} cung cấp các tiện ích sau:\n- ${formattedAmenities.join('\n- ')}`;
         }
       } catch (error) {
         this.logger.error(`Lỗi khi lấy tiện ích: ${error.message}`);
@@ -1487,9 +1568,12 @@ THÔNG TIN HỆ THỐNG:
 
         // Thông tin tiện ích (nếu có)
         if (hotelDetails?.amenities && hotelDetails.amenities.length > 0) {
-          response += `🎯 **Tiện ích nổi bật:** ${hotelDetails.amenities.slice(0, 3).join(', ')}`;
-          if (hotelDetails.amenities.length > 3) {
-            response += ` và ${hotelDetails.amenities.length - 3} tiện ích khác`;
+          const formattedAmenities = this.formatAmenities(
+            hotelDetails.amenities,
+          );
+          response += `🎯 **Tiện ích nổi bật:** ${formattedAmenities.slice(0, 5).join(', ')}`;
+          if (formattedAmenities.length > 5) {
+            response += ` và ${formattedAmenities.length - 5} tiện ích khác`;
           }
           response += '\n\n';
         }

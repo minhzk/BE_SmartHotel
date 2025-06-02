@@ -151,9 +151,15 @@ export class ChatbotDataService {
     }
   }
 
-  async getHotelsByPriceRange(minPrice: number, maxPrice: number) {
+  async getHotelsByPriceRange(minPrice: number, maxPrice?: number | null) {
     try {
-      const query = `min_price=${minPrice}&max_price=${maxPrice}`;
+      let query = `min_price=${minPrice}`;
+      if (maxPrice !== null && maxPrice !== undefined) {
+        query += `&max_price=${maxPrice}`;
+      }
+      // Thêm sắp xếp theo rating cao nhất
+      query += '&sortBy=rating_desc';
+
       const hotels = await this.hotelsService.findAll(query, 1, 5);
       return hotels.results || [];
     } catch (error) {

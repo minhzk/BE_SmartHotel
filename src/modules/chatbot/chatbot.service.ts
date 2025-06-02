@@ -172,7 +172,25 @@ export class ChatbotService {
           session.context,
           message, // Truyền thêm userMessage vào
         );
-        response.message = enhancedResponse || response.message;
+
+        if (enhancedResponse) {
+          if (
+            typeof enhancedResponse === 'object' &&
+            enhancedResponse.message
+          ) {
+            response.message = enhancedResponse.message;
+            if (enhancedResponse.context) {
+              response.context = {
+                ...response.context,
+                ...enhancedResponse.context,
+              };
+            }
+          } else if (typeof enhancedResponse === 'string') {
+            response.message = enhancedResponse;
+          }
+        }
+
+        console.log('session.context', session.context);
       }
 
       // Create bot response message
@@ -186,11 +204,20 @@ export class ChatbotService {
         timestamp: new Date(),
       });
 
-      // Update session context if needed
-      if (response.context) {
+      // Update session context if needed or if context was modified during enhancement
+      if (
+        response.context ||
+        JSON.stringify(session.context) !== JSON.stringify(session.context)
+      ) {
+        const updatedContext = { ...session.context, ...response.context };
+
         await this.chatSessionModel.findByIdAndUpdate(session._id, {
-          context: { ...session.context, ...response.context },
+          context: updatedContext,
         });
+
+        this.logger.log(
+          `Updated session context: ${JSON.stringify(updatedContext)}`,
+        );
       }
 
       return {
@@ -394,10 +421,11 @@ export class ChatbotService {
     response: any,
     context: any,
     userMessage: string = '',
-  ): Promise<string | null> {
+  ): Promise<{ message: string; context?: any } | string | null> {
     try {
       const originalMessage = response.message;
       const intent = response.intent || '';
+      let contextUpdates = {};
 
       this.logger.log(`Enhancing response for: "${originalMessage}"`);
       if (userMessage) {
@@ -410,6 +438,189 @@ export class ChatbotService {
         .toLowerCase()
         .trim()
         .replace(/\s+/g, ' '); // Chuẩn hóa khoảng trắng
+
+      // Kiểm tra ngữ cảnh tham chiếu khách sạn ngay từ đầu
+      const contextualKeywords = [
+        'khách sạn này',
+        'ks này',
+        'nó',
+        'ở đây',
+        'chỗ này',
+        'của khách sạn',
+        'hotel này',
+      ];
+
+      const hasContextualReference = contextualKeywords.some((keyword) =>
+        normalizedUserMsg.includes(keyword),
+      );
+
+      // Nếu có tham chiếu ngữ cảnh, tìm tên khách sạn từ originalMessage
+      if (hasContextualReference) {
+        this.logger.log(
+          `✓ Phát hiện câu hỏi tham chiếu ngữ cảnh: "${userMessage}"`,
+        );
+
+        // Kiểm tra xem trong session context có lưu khách sạn nào không
+        if (context?.current_hotel) {
+          this.logger.log(
+            `Sử dụng khách sạn từ context: ${context.current_hotel.name}`,
+          );
+
+          try {
+            const foundHotel = await this.chatbotDataService.getHotelDetails(
+              context.current_hotel.id,
+            );
+
+            if (foundHotel) {
+              // Phân tích câu hỏi cụ thể về khách sạn từ context
+              const contextualResponse = await this.handleSpecificHotelQuestion(
+                normalizedUserMsg,
+                foundHotel,
+              );
+
+              if (contextualResponse) {
+                return { message: contextualResponse, context: contextUpdates };
+              }
+            }
+          } catch (error) {
+            this.logger.error(
+              `Lỗi khi lấy thông tin khách sạn từ context: ${error.message}`,
+            );
+          }
+        }
+
+        // Nếu không có trong context hoặc có lỗi, thì tìm trong originalMessage
+        const hotelNamePattern =
+          /khách sạn\s*([\p{L}\d\s\-\.]+?)(?:\s+(?:nằm|ở|tại|là|có|được|thuộc|trong|của|như)|[,.;:!?]|$)/iu;
+        const hotelMatch = originalMessage.match(hotelNamePattern);
+
+        let contextHotelName = null;
+        if (hotelMatch) {
+          contextHotelName = hotelMatch[1]
+            .trim()
+            .replace(
+              /\s+(nằm|ở|o|tại|tai|là|la|có|co|được|thuộc|trong|của)\s*.*$/i,
+              '',
+            )
+            .trim();
+
+          this.logger.log(
+            `Tìm thấy tên khách sạn trong ngữ cảnh: "${contextHotelName}"`,
+          );
+
+          // Tìm kiếm khách sạn và lưu vào context
+          try {
+            const hotels =
+              await this.chatbotDataService.getHotelsByName(contextHotelName);
+            if (hotels.length > 0) {
+              const foundHotel = hotels[0];
+
+              // Cập nhật context với thông tin khách sạn
+              contextUpdates['current_hotel'] = {
+                id: foundHotel._id.toString(),
+                name: foundHotel.name,
+                city: foundHotel.city,
+                rating: foundHotel.rating,
+              };
+
+              this.logger.log(
+                `Đã cập nhật context với khách sạn: ${foundHotel.name}`,
+              );
+
+              // Phân tích câu hỏi cụ thể về khách sạn này
+              const contextualResponse = await this.handleSpecificHotelQuestion(
+                normalizedUserMsg,
+                foundHotel,
+              );
+
+              if (contextualResponse) {
+                return { message: contextualResponse, context: contextUpdates };
+              }
+            }
+          } catch (error) {
+            this.logger.error(
+              `Lỗi khi xử lý ngữ cảnh khách sạn: ${error.message}`,
+            );
+          }
+        }
+      }
+
+      // Kiểm tra xem user có hỏi về khách sạn cụ thể không (không phải tham chiếu)
+      const directHotelPattern =
+        /(?:khách sạn|ks)\s*([\p{L}\d\s\-\.]+?)(?:\s+(?:thông tin|chi tiết|giá|địa chỉ|tiện ích|phòng|loại|gì)|[?]|$)/iu;
+      const directHotelMatch = normalizedUserMsg.match(directHotelPattern);
+
+      // Kiểm tra xem có phải câu hỏi về khách sạn theo thành phố không
+      const cityQuestionPatterns = [
+        /(?:các|những)?\s*khách sạn\s+(?:ở|tại|trong)\s+/i,
+        /khách sạn\s+nào\s+(?:ở|tại|trong)\s+/i,
+        /có\s+(?:những|các)?\s*khách sạn\s+(?:nào\s+)?(?:ở|tại|trong)\s+/i,
+        /danh sách\s+khách sạn\s+(?:ở|tại|trong)\s+/i,
+      ];
+
+      // Kiểm tra xem có phải câu hỏi về khách sạn theo tiêu chí không (đánh giá, giá cả, loại...)
+      const criteriaQuestionPatterns = [
+        /(?:các|những)?\s*khách sạn\s+(?:được\s+)?(?:đánh giá|tốt|cao|nổi tiếng|sang trọng|chất lượng)/i,
+        /khách sạn\s+(?:nào\s+)?(?:được\s+)?(?:đánh giá|tốt|cao|nổi tiếng|sang trọng|chất lượng)/i,
+        /(?:các|những)?\s*khách sạn\s+(?:có\s+)?giá\s+(?:từ|khoảng|rẻ|cao|thấp)/i,
+        /(?:các|những)?\s*khách sạn\s+\d+\s*sao/i,
+        /danh sách\s+khách sạn\s+(?:tốt|đánh giá|cao|nổi tiếng)/i,
+      ];
+
+      const isCityQuestion = cityQuestionPatterns.some((pattern) =>
+        pattern.test(normalizedUserMsg),
+      );
+
+      const isCriteriaQuestion = criteriaQuestionPatterns.some((pattern) =>
+        pattern.test(normalizedUserMsg),
+      );
+
+      if (
+        directHotelMatch &&
+        !hasContextualReference &&
+        !isCityQuestion &&
+        !isCriteriaQuestion
+      ) {
+        const hotelName = directHotelMatch[1].trim();
+        this.logger.log(
+          `✓ Phát hiện câu hỏi về khách sạn cụ thể: "${hotelName}"`,
+        );
+
+        try {
+          const hotels =
+            await this.chatbotDataService.getHotelsByName(hotelName);
+          if (hotels.length > 0) {
+            const foundHotel = hotels[0];
+
+            // Cập nhật context với thông tin khách sạn mới
+            contextUpdates['current_hotel'] = {
+              id: foundHotel._id.toString(),
+              name: foundHotel.name,
+              city: foundHotel.city,
+              rating: foundHotel.rating,
+            };
+
+            this.logger.log(
+              `Đã cập nhật context với khách sạn mới: ${foundHotel.name}`,
+            );
+
+            // Phân tích câu hỏi cụ thể về khách sạn này
+            const specificResponse = await this.handleSpecificHotelQuestion(
+              normalizedUserMsg,
+              foundHotel,
+            );
+
+            if (specificResponse) {
+              return { message: specificResponse, context: contextUpdates };
+            }
+          } else {
+            this.logger.log(`Không tìm thấy khách sạn với tên: "${hotelName}"`);
+            return `Xin lỗi, tôi không tìm thấy khách sạn "${hotelName}" trong hệ thống. Bạn có thể kiểm tra lại tên khách sạn hoặc tìm kiếm khách sạn khác?`;
+          }
+        } catch (error) {
+          this.logger.error(`Lỗi khi tìm kiếm khách sạn: ${error.message}`);
+        }
+      }
 
       // Tìm kiếm thành phố trong cả userMessage và originalMessage
       let city = null;
@@ -446,7 +657,7 @@ export class ChatbotService {
       ];
 
       // Tìm trong cả userMessage và originalMessage
-      const searchTexts = [normalizedUserMsg, originalMessage].filter(
+      const searchTexts = [normalizedUserMsg].filter(
         (text) => text,
       );
 
@@ -1150,5 +1361,151 @@ THÔNG TIN HỆ THỐNG:
     }
 
     return contextUpdate;
+  }
+
+  // Phương thức mới để xử lý câu hỏi cụ thể về khách sạn đã xác định
+  private async handleSpecificHotelQuestion(
+    normalizedUserMsg: string,
+    hotel: any,
+  ): Promise<string | null> {
+    // Trả lời về giá phòng
+    if (
+      normalizedUserMsg.includes('giá') ||
+      normalizedUserMsg.includes('bao nhiêu')
+    ) {
+      try {
+        const rooms = await this.chatbotDataService.getHotelRooms(
+          hotel._id.toString(),
+        );
+        if (rooms.length > 0) {
+          const roomInfo = rooms
+            .map(
+              (r) =>
+                `- ${r.name}: ${r.price_per_night?.toLocaleString()} VND/đêm`,
+            )
+            .join('\n');
+
+          return `Bảng giá phòng tại khách sạn ${hotel.name}:\n${roomInfo}`;
+        }
+      } catch (error) {
+        this.logger.error(`Lỗi khi lấy giá phòng: ${error.message}`);
+      }
+    }
+
+    // Trả lời về địa chỉ/vị trí
+    if (
+      normalizedUserMsg.includes('địa chỉ') ||
+      normalizedUserMsg.includes('ở đâu') ||
+      normalizedUserMsg.includes('vị trí')
+    ) {
+      return `Khách sạn ${hotel.name} tọa lạc tại ${hotel.address || hotel.city}`;
+    }
+
+    // Trả lời về tiện ích
+    if (
+      normalizedUserMsg.includes('tiện ích') ||
+      normalizedUserMsg.includes('dịch vụ')
+    ) {
+      try {
+        const hotelDetails = await this.chatbotDataService.getHotelDetails(
+          hotel._id.toString(),
+        );
+        if (hotelDetails && hotelDetails.amenities) {
+          return `Khách sạn ${hotel.name} cung cấp các tiện ích sau:\n- ${hotelDetails.amenities.join('\n- ')}`;
+        }
+      } catch (error) {
+        this.logger.error(`Lỗi khi lấy tiện ích: ${error.message}`);
+      }
+    }
+
+    // Trả lời về loại phòng
+    if (
+      normalizedUserMsg.includes('loại phòng') ||
+      normalizedUserMsg.includes('phòng gì') ||
+      normalizedUserMsg.includes('phòng nào') ||
+      normalizedUserMsg.includes('những phòng') ||
+      normalizedUserMsg.includes('các phòng')
+    ) {
+      try {
+        const rooms = await this.chatbotDataService.getHotelRooms(
+          hotel._id.toString(),
+        );
+        if (rooms.length > 0) {
+          const roomInfo = rooms
+            .map(
+              (r) =>
+                `- ${r.name} (${r.room_type}): sức chứa ${r.capacity} người`,
+            )
+            .join('\n');
+
+          return `Khách sạn ${hotel.name} có các loại phòng sau:\n${roomInfo}`;
+        }
+      } catch (error) {
+        this.logger.error(`Lỗi khi lấy loại phòng: ${error.message}`);
+      }
+    }
+
+    // Thông tin tổng quan
+    if (
+      normalizedUserMsg.includes('thông tin') ||
+      normalizedUserMsg.includes('giới thiệu')
+    ) {
+      try {
+        // Lấy thông tin chi tiết của khách sạn
+        const hotelDetails = await this.chatbotDataService.getHotelDetails(
+          hotel._id.toString(),
+        );
+
+        // Lấy thông tin phòng để tính khoảng giá
+        const rooms = await this.chatbotDataService.getHotelRooms(
+          hotel._id.toString(),
+        );
+
+        let response = `🏨 **THÔNG TIN KHÁCH SẠN ${hotel.name.toUpperCase()}**\n\n`;
+
+        // Thông tin cơ bản
+        response += `📍 **Vị trí:** ${hotelDetails?.address || hotel.city}\n`;
+        response += `⭐ **Hạng sao:** ${hotel.rating} sao\n`;
+        response += `🏙️ **Thành phố:** ${hotel.city}\n\n`;
+
+        // Thông tin giá phòng
+        if (rooms.length > 0) {
+          const prices = rooms
+            .map((r) => r.price_per_night)
+            .filter((p) => p && p > 0);
+          if (prices.length > 0) {
+            const minPrice = Math.min(...prices);
+            const maxPrice = Math.max(...prices);
+
+            if (minPrice === maxPrice) {
+              response += `💰 **Giá phòng:** ${minPrice.toLocaleString()} VND/đêm\n\n`;
+            } else {
+              response += `💰 **Giá phòng:** từ ${minPrice.toLocaleString()} - ${maxPrice.toLocaleString()} VND/đêm\n\n`;
+            }
+          }
+        }
+
+        // Thông tin tiện ích (nếu có)
+        if (hotelDetails?.amenities && hotelDetails.amenities.length > 0) {
+          response += `🎯 **Tiện ích nổi bật:** ${hotelDetails.amenities.slice(0, 3).join(', ')}`;
+          if (hotelDetails.amenities.length > 3) {
+            response += ` và ${hotelDetails.amenities.length - 3} tiện ích khác`;
+          }
+          response += '\n\n';
+        }
+
+        response += `Bạn muốn biết thêm thông tin gì cụ thể về khách sạn này? (giá phòng chi tiết, tiện ích, loại phòng...)`;
+
+        return response;
+      } catch (error) {
+        this.logger.error(
+          `Lỗi khi lấy thông tin chi tiết khách sạn: ${error.message}`,
+        );
+        // Fallback về thông tin cơ bản
+        return `Khách sạn ${hotel.name} là khách sạn ${hotel.rating} sao tại ${hotel.city}. Bạn muốn biết thêm thông tin gì cụ thể về khách sạn này?`;
+      }
+    }
+
+    return null;
   }
 }

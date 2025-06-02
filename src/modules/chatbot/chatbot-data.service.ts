@@ -99,6 +99,29 @@ export class ChatbotDataService {
     }
   }
 
+  async getHotelsByName(hotelName: string) {
+    try {
+      this.logger.log(`Tìm kiếm khách sạn với tên: "${hotelName}"`);
+
+      // Sử dụng name query để tìm kiếm theo tên
+      const query = `name=${encodeURIComponent(hotelName)}`;
+      const hotels = await this.hotelsService.findAll(query, 1, 10);
+
+      if (hotels.results && hotels.results.length > 0) {
+        this.logger.log(
+          `Tìm thấy ${hotels.results.length} khách sạn phù hợp với tên "${hotelName}"`,
+        );
+        return hotels.results;
+      } else {
+        this.logger.log(`Không tìm thấy khách sạn nào với tên "${hotelName}"`);
+        return [];
+      }
+    } catch (error) {
+      this.logger.error(`Error fetching hotels by name: ${error.message}`);
+      return [];
+    }
+  }
+
   async checkRoomAvailability(
     roomId: string,
     startDate: string,

@@ -983,7 +983,12 @@ export class ChatbotService {
         (normalizedUserMsg.includes('giá') ||
           normalizedUserMsg.includes('bao nhiêu') ||
           normalizedUserMsg.includes('cost') ||
-          normalizedUserMsg.includes('price'))
+          normalizedUserMsg.includes('price')) &&
+        // Loại trừ các trường hợp hỏi về giá khách sạn chung
+        !normalizedUserMsg.includes('khách sạn') &&
+        !normalizedUserMsg.includes('hotel') &&
+        !normalizedUserMsg.includes('ks') &&
+        !normalizedUserMsg.includes('ksan')
       ) {
         this.logger.log(
           `✓ Phát hiện câu hỏi về giá trong context khách sạn: ${context.current_hotel.name}`,

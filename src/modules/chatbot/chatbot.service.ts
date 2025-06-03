@@ -926,7 +926,7 @@ export class ChatbotService {
       ];
 
       // Các từ khóa liên quan đến phòng trống/tình trạng phòng
-      const availabilityKeywords = [
+      const invalidKeywords = [
         'trống',
         'còn trống',
         'có sẵn',
@@ -939,6 +939,9 @@ export class ChatbotService {
         'vacant',
         'tình trạng',
         'status',
+        'chính sách',
+        'hủy',
+        'hoàn tiền',
       ];
 
       // Kiểm tra từng điều kiện riêng biệt
@@ -950,24 +953,23 @@ export class ChatbotService {
       );
 
       // Kiểm tra xem có phải câu hỏi về phòng trống không
-      const hasAvailabilityKeyword = availabilityKeywords.some((keyword) =>
+      const hasInvalidKeyword = invalidKeywords.some((keyword) =>
         normalizedUserMsg.includes(keyword),
       );
 
       // Kiểm tra bằng regex linh hoạt
       const roomTypesQuestionPattern =
-        /(?:có|cho\s+biết|liệt\s+kê|kể|nêu|hiển\s+thị)?\s*(?:các|những)?\s*(?:loại|kiểu|dạng|hạng)?\s*phòng\s*(?:gì|nào|như\s+thế\s+nào|ra\s+sao|ở\s+đây|của\s+(?:smart\s+hotel|khách\s+sạn))?/i;
-
+        /(?:có|cho\s+biết|liệt\s+kê|kể|nêu|hiển\s+thị)?\s*(?:các|những)?\s*(?:loại|kiểu|dạng|hạng)?\s*phòng\s*(?:gì|nào|như\s+thế\s+nào|ra\s+sao|ở\s+đây|của\s+(?:smart\s+hotel|khách\s+sạn)|(?<!hủy\s|chính\s+sách\s|hoàn\s+tiền\s|miễn\s+phí\s)không)?/i;
       const isPatternRoomTypeMatch =
         roomTypesQuestionPattern.test(normalizedUserMsg);
 
       this.logger.log(`Kiểm tra câu hỏi về loại phòng: "${normalizedUserMsg}"`);
       this.logger.log(
-        `hasRoomTypeKeyword: ${hasRoomTypeKeyword}, hasQuestionKeyword: ${hasQuestionKeyword}, hasAvailabilityKeyword: ${hasAvailabilityKeyword}, isPatternMatch: ${isPatternRoomTypeMatch}`,
+        `hasRoomTypeKeyword: ${hasRoomTypeKeyword}, hasQuestionKeyword: ${hasQuestionKeyword}, hasInvalidKeyword: ${hasInvalidKeyword}, isPatternMatch: ${isPatternRoomTypeMatch}`,
       );
 
       if (
-        !hasAvailabilityKeyword && // Thêm điều kiện loại trừ phòng trống
+        !hasInvalidKeyword && // Thêm điều kiện loại trừ phòng trống
         (isPatternRoomTypeMatch ||
           (hasRoomTypeKeyword && hasQuestionKeyword) ||
           // Hardcode các trường hợp đặc biệt để đảm bảo bắt được

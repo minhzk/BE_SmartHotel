@@ -216,8 +216,8 @@ export class BookingsScheduleService {
     );
 
     try {
-      // Tìm tất cả booking chưa thanh toán và đã quá 10 phút
-      const expiredTime = dayjs().subtract(10, 'minute').toDate();
+      // Tìm tất cả booking chưa thanh toán và đã quá 7 phút
+      const expiredTime = dayjs().subtract(7, 'minute').toDate();
 
       const expiredBookings = await this.bookingModel.find({
         status: BookingStatus.PENDING,

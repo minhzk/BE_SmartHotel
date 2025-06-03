@@ -919,12 +919,33 @@ export class ChatbotService {
         'liệt kê',
       ];
 
+      // Các từ khóa liên quan đến phòng trống/tình trạng phòng
+      const availabilityKeywords = [
+        'trống',
+        'còn trống',
+        'có sẵn',
+        'sẵn có',
+        'available',
+        'còn',
+        'đặt được',
+        'book được',
+        'free',
+        'vacant',
+        'tình trạng',
+        'status',
+      ];
+
       // Kiểm tra từng điều kiện riêng biệt
       const hasRoomTypeKeyword = roomPhrases.some((phrase) =>
         normalizedUserMsg.includes(phrase),
       );
       const hasQuestionKeyword = questionPhrases.some((phrase) =>
         normalizedUserMsg.includes(phrase),
+      );
+
+      // Kiểm tra xem có phải câu hỏi về phòng trống không
+      const hasAvailabilityKeyword = availabilityKeywords.some((keyword) =>
+        normalizedUserMsg.includes(keyword),
       );
 
       // Kiểm tra bằng regex linh hoạt
@@ -936,23 +957,55 @@ export class ChatbotService {
 
       this.logger.log(`Kiểm tra câu hỏi về loại phòng: "${normalizedUserMsg}"`);
       this.logger.log(
-        `hasRoomTypeKeyword: ${hasRoomTypeKeyword}, hasQuestionKeyword: ${hasQuestionKeyword}, isPatternMatch: ${isPatternMatch}`,
+        `hasRoomTypeKeyword: ${hasRoomTypeKeyword}, hasQuestionKeyword: ${hasQuestionKeyword}, hasAvailabilityKeyword: ${hasAvailabilityKeyword}, isPatternMatch: ${isPatternRoomTypeMatch}`,
       );
 
       if (
-        isPatternRoomTypeMatch ||
-        (hasRoomTypeKeyword && hasQuestionKeyword) ||
-        // Hardcode các trường hợp đặc biệt để đảm bảo bắt được
-        normalizedUserMsg === 'có các loại phòng nào' ||
-        normalizedUserMsg === 'có những loại phòng nào' ||
-        normalizedUserMsg === 'có các phòng gì' ||
-        normalizedUserMsg === 'có phòng gì' ||
-        normalizedUserMsg.includes('các loại phòng') ||
-        normalizedUserMsg.includes('loại phòng nào')
+        !hasAvailabilityKeyword && // Thêm điều kiện loại trừ phòng trống
+        (isPatternRoomTypeMatch ||
+          (hasRoomTypeKeyword && hasQuestionKeyword) ||
+          // Hardcode các trường hợp đặc biệt để đảm bảo bắt được
+          normalizedUserMsg === 'có các loại phòng nào' ||
+          normalizedUserMsg === 'có những loại phòng nào' ||
+          normalizedUserMsg === 'có các phòng gì' ||
+          normalizedUserMsg === 'có phòng gì' ||
+          normalizedUserMsg.includes('các loại phòng') ||
+          normalizedUserMsg.includes('loại phòng nào'))
       ) {
         this.logger.log(
           `✓ Phát hiện câu hỏi về danh sách loại phòng: "${userMessage}"`,
         );
+
+        // Kiểm tra xem có context về khách sạn cụ thể không
+        if (context?.current_hotel) {
+          this.logger.log(
+            `Trả lời loại phòng cho khách sạn cụ thể: ${context.current_hotel.name}`,
+          );
+
+          try {
+            const rooms = await this.chatbotDataService.getHotelRooms(
+              context.current_hotel.id,
+            );
+
+            if (rooms.length > 0) {
+              const roomInfo = rooms
+                .map(
+                  (r) =>
+                    `- ${r.name} (${r.room_type}): sức chứa ${r.capacity} người, giá ${r.price_per_night?.toLocaleString()} VND/đêm`,
+                )
+                .join('\n');
+
+              return `Khách sạn ${context.current_hotel.name} có các loại phòng sau:\n${roomInfo}\n\nBạn muốn biết thêm thông tin chi tiết về loại phòng nào không?`;
+            } else {
+              return `Hiện tại khách sạn ${context.current_hotel.name} chưa có thông tin về các loại phòng. Vui lòng liên hệ trực tiếp với khách sạn để biết thêm chi tiết.`;
+            }
+          } catch (error) {
+            this.logger.error(
+              `Lỗi khi lấy thông tin phòng cho khách sạn ${context.current_hotel.name}: ${error.message}`,
+            );
+            // Fallback về thông tin tổng quát
+          }
+        }
 
         const roomTypes = Object.values(roomTypeKeywords).filter(
           (value, index, self) => self.indexOf(value) === index,
@@ -1114,26 +1167,33 @@ export class ChatbotService {
       }
 
       // Kiểm tra tình trạng phòng trống
-      const availabilityMatch = userMessage.match(
+      const availabilityMatch = normalizedUserMsg.match(
         /phòng trống|phòng còn trống|còn phòng|đặt phòng/i,
       );
       if (availabilityMatch) {
         // Trích xuất thông tin về ngày từ ngữ cảnh hoặc tin nhắn
-        const dateInfo = this.extractDateInfo(userMessage, context);
+        const dateInfo = this.extractDateInfo(
+          normalizedUserMsg,
+          context.current_hotel,
+        );
 
-        if (dateInfo.hasValidDates && context?.hotel_id) {
+        if (dateInfo.hasValidDates && context?.current_hotel?.id) {
           const availableRooms =
             await this.chatbotDataService.getAvailableRoomsForHotel(
-              context.hotel_id,
+              context.current_hotel.id,
               dateInfo.checkIn,
               dateInfo.checkOut,
             );
+
+          this.logger.log(
+            `Tìm thấy ${availableRooms.length} phòng trống tại khách sạn ${context.current_hotel.name} từ ${dateInfo.checkIn} đến ${dateInfo.checkOut}`,
+          );
 
           if (availableRooms.length > 0) {
             const roomInfo = availableRooms
               .map(
                 (r) =>
-                  `- ${r.name}: loại ${r.room_type}, giá ${r.price_per_night?.toLocaleString()} VND/đêm, còn ${r.available_count} phòng`,
+                  `- ${r.name || r._doc?.name}: loại ${r.room_type || r._doc?.room_type}, giá ${(r.price_per_night || r._doc?.price_per_night)?.toLocaleString()} VND/đêm, còn ${r.available_count} phòng`,
               )
               .join('\n');
 
@@ -1215,33 +1275,136 @@ export class ChatbotService {
 
   // Helper method to extract date information for availability checking
   private extractDateInfo(message: string, context: any) {
-    // Try to extract dates from the message
-    const dateRegex = /(\d{1,2})\/(\d{1,2})\/(\d{4})/g;
-    let dates = [];
-    let match;
+    this.logger.log(
+      `Extracting date information from message: "${message}" with context: ${JSON.stringify(context)}`,
+    );
 
-    while ((match = dateRegex.exec(message)) !== null) {
-      dates.push(new Date(match[3], match[2] - 1, match[1]));
+    let dates = [];
+    const currentYear = new Date().getFullYear();
+
+    // Pattern 1: Full date format DD/MM/YYYY - highest priority
+    const fullDateRegex = /(\d{1,2})\/(\d{1,2})\/(\d{4})/g;
+    let match;
+    while ((match = fullDateRegex.exec(message)) !== null) {
+      const day = parseInt(match[1]);
+      const month = parseInt(match[2]);
+      const year = parseInt(match[3]);
+      if (day <= 31 && month <= 12) {
+        const date = new Date(year, month - 1, day); // month - 1 because JS months are 0-indexed
+        dates.push(date);
+        this.logger.log(
+          `Found full date: ${day}/${month}/${year} -> Created date: ${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`,
+        );
+      }
     }
+
+    // Pattern 2: Vietnamese format "ngày X tháng Y" - second priority
+    const vietnameseDateRegex =
+      /ngày\s+(\d{1,2})\s+tháng\s+(\d{1,2})(?:\s+năm\s+(\d{4}))?/gi;
+    while ((match = vietnameseDateRegex.exec(message)) !== null) {
+      const day = parseInt(match[1]);
+      const month = parseInt(match[2]);
+      const year = match[3] ? parseInt(match[3]) : currentYear;
+      if (day <= 31 && month <= 12) {
+        const date = new Date(year, month - 1, day);
+        dates.push(date);
+        this.logger.log(
+          `Found Vietnamese date: ngày ${day} tháng ${month} -> Created date: ${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`,
+        );
+      }
+    }
+
+    // Only process short formats if no full dates were found
+    if (dates.length === 0) {
+      // Pattern 3: Short date format DD/MM (assume current year) - Vietnamese format is always DD/MM
+      const shortDateRegex = /(?<![\d\/])(\d{1,2})\/(\d{1,2})(?![\d\/])/g;
+      while ((match = shortDateRegex.exec(message)) !== null) {
+        const day = parseInt(match[1]);
+        const month = parseInt(match[2]);
+
+        // In Vietnamese context, always treat as DD/MM format
+        if (day <= 31 && month <= 12) {
+          const date = new Date(currentYear, month - 1, day); // month - 1 for 0-indexed months
+          dates.push(date);
+          this.logger.log(
+            `Found short date (DD/MM): ${day}/${month} -> Created date: ${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`,
+          );
+        }
+      }
+
+      // Pattern 4: Dash format DD-MM (assume current year)
+      const dashDateRegex = /(?<![\d\-])(\d{1,2})-(\d{1,2})(?![\d\-])/g;
+      while ((match = dashDateRegex.exec(message)) !== null) {
+        const day = parseInt(match[1]);
+        const month = parseInt(match[2]);
+        if (day <= 31 && month <= 12) {
+          const date = new Date(currentYear, month - 1, day);
+          dates.push(date);
+          this.logger.log(
+            `Found dash date (DD-MM): ${day}-${month} -> Created date: ${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`,
+          );
+        }
+      }
+    }
+
+    // Sort dates chronologically
+    dates.sort((a, b) => a.getTime() - b.getTime());
+
+    // Remove duplicates
+    dates = dates.filter(
+      (date, index, self) =>
+        index ===
+        self.findIndex((d) => d.toDateString() === date.toDateString()),
+    );
+
+    // Log dates with proper formatting
+    this.logger.log(
+      `Extracted dates: ${dates
+        .map((d) => {
+          const year = d.getFullYear();
+          const month = (d.getMonth() + 1).toString().padStart(2, '0');
+          const day = d.getDate().toString().padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        })
+        .join(', ')}`,
+    );
 
     // If we found at least two dates, use them as check-in and check-out
     if (dates.length >= 2) {
+      const checkInDate = dates[0];
+      const checkOutDate = dates[1];
+
+      const checkIn = `${checkInDate.getFullYear()}-${(checkInDate.getMonth() + 1).toString().padStart(2, '0')}-${checkInDate.getDate().toString().padStart(2, '0')}`;
+      const checkOut = `${checkOutDate.getFullYear()}-${(checkOutDate.getMonth() + 1).toString().padStart(2, '0')}-${checkOutDate.getDate().toString().padStart(2, '0')}`;
+
+      this.logger.log(
+        `Returning dates: checkIn=${checkIn}, checkOut=${checkOut}`,
+      );
+
       return {
         hasValidDates: true,
-        checkIn: dates[0].toISOString().split('T')[0],
-        checkOut: dates[1].toISOString().split('T')[0],
+        checkIn,
+        checkOut,
       };
     }
 
     // If only one date found, assume it's check-in and check-out is the next day
     if (dates.length === 1) {
-      const checkOut = new Date(dates[0]);
-      checkOut.setDate(checkOut.getDate() + 1);
+      const checkInDate = dates[0];
+      const checkOutDate = new Date(checkInDate);
+      checkOutDate.setDate(checkOutDate.getDate() + 1);
+
+      const checkIn = `${checkInDate.getFullYear()}-${(checkInDate.getMonth() + 1).toString().padStart(2, '0')}-${checkInDate.getDate().toString().padStart(2, '0')}`;
+      const checkOut = `${checkOutDate.getFullYear()}-${(checkOutDate.getMonth() + 1).toString().padStart(2, '0')}-${checkOutDate.getDate().toString().padStart(2, '0')}`;
+
+      this.logger.log(
+        `Returning single date extended: checkIn=${checkIn}, checkOut=${checkOut}`,
+      );
 
       return {
         hasValidDates: true,
-        checkIn: dates[0].toISOString().split('T')[0],
-        checkOut: checkOut.toISOString().split('T')[0],
+        checkIn,
+        checkOut,
       };
     }
 
@@ -1261,11 +1424,22 @@ export class ChatbotService {
       };
     }
 
-    // No valid dates found
+    // If no specific dates mentioned, use current date as check-in and next day as check-out
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const checkIn = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
+    const checkOut = `${tomorrow.getFullYear()}-${(tomorrow.getMonth() + 1).toString().padStart(2, '0')}-${tomorrow.getDate().toString().padStart(2, '0')}`;
+
+    this.logger.log(
+      `Using default dates: checkIn=${checkIn}, checkOut=${checkOut}`,
+    );
+
     return {
-      hasValidDates: false,
-      checkIn: null,
-      checkOut: null,
+      hasValidDates: true,
+      checkIn,
+      checkOut,
     };
   }
 

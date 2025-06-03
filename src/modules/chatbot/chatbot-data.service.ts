@@ -215,7 +215,6 @@ export class ChatbotDataService {
           });
         }
       }
-
       return availableRooms;
     } catch (error) {
       this.logger.error(`Error fetching available rooms: ${error.message}`);

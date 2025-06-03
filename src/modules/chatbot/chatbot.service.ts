@@ -465,6 +465,12 @@ export class ChatbotService {
         .trim()
         .replace(/\s+/g, ' '); // Chuẩn hóa khoảng trắng
 
+      // Chuẩn hóa chuỗi để tránh lỗi khi so sánh Unicode tiếng Việt
+      const normalizedOriginalMsg = originalMessage
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, ' '); // Chuẩn hóa khoảng trắng
+
       // Kiểm tra ngữ cảnh tham chiếu khách sạn ngay từ đầu
       const contextualKeywords = [
         'khách sạn này',
@@ -517,8 +523,8 @@ export class ChatbotService {
 
         // Nếu không có trong context hoặc có lỗi, thì tìm trong originalMessage
         const hotelNamePattern =
-          /khách sạn\s*([\p{L}\d\s\-\.]+?)(?:\s+(?:nằm|ở|tại|là|có|được|thuộc|trong|của|như)|[,.;:!?]|$)/iu;
-        const hotelMatch = originalMessage.match(hotelNamePattern);
+          /khách sạn\s*([\p{L}\d\s\-\.]+?)(?:\s+(?:nằm|ở|tại|là|có|được|thuộc|trong|của|như|cung|tọa)|[,.;:!?]|$)/iu;
+        const hotelMatch = normalizedOriginalMsg.match(hotelNamePattern);
 
         let contextHotelName = null;
         if (hotelMatch) {
@@ -573,7 +579,7 @@ export class ChatbotService {
 
       // Kiểm tra xem user có hỏi về khách sạn cụ thể không (không phải tham chiếu)
       const directHotelPattern =
-        /(?:khách sạn|ks|ksan|k san)\s+(?!được|có|tại|nằm|ở|trong|của|như|là|thuộc|với|và|hoặc|nào|gì|tốt|đánh|giá|cao|chất|lượng|sao|nổi|tiếng|đẹp|sang|top)([\p{L}\d\s\-\.]+?)(?:\s+(?:thông tin|chi tiết|giá|địa chỉ|tiện ích|phòng|loại|gì)|[?]|$)/iu;
+        /(?:khách sạn|ks|ksan|k san|khach san)\s+(?!được|có|tại|nằm|ở|trong|của|như|là|thuộc|với|và|hoặc|nào|gì|tốt|đánh|giá|cao|chất|lượng|sao|nổi|tiếng|đẹp|sang|top)([\p{L}\d\s\-\.]+?)(?:\s+(?:có|thông tin|chi tiết|giá|địa chỉ|tiện ích|phòng|loại|gì)|[?]|$)/iu;
       const directHotelMatch = normalizedUserMsg.match(directHotelPattern);
 
       if (directHotelMatch && !hasContextualReference) {

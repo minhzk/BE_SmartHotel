@@ -579,7 +579,7 @@ export class ChatbotService {
 
       // Kiểm tra xem user có hỏi về khách sạn cụ thể không (không phải tham chiếu)
       const directHotelPattern =
-        /(?:khách sạn|ks|ksan|k san|khach san)\s+(?!được|có|tại|nằm|ở|trong|của|như|là|thuộc|với|và|hoặc|nào|gì|tốt|đánh|giá|cao|chất|lượng|sao|nổi|tiếng|đẹp|sang|top)([\p{L}\d\s\-\.]+?)(?:\s+(?:có|thông tin|chi tiết|giá|địa chỉ|tiện ích|phòng|loại|gì)|[?]|$)/iu;
+        /(?:khách sạn|ks|ksan|k san|khach san)\s+(?!được|có|tại|nằm|ở|trong|của|như|là|thuộc|với|và|hoặc|nào|gì|tốt|đánh|giá|cao|chất|lượng|sao|nổi|tiếng|đẹp|sang|top)([\p{L}\d\s\-\.]+?)(?:\s+(?:có|thông tin|chi tiết|giá|địa chỉ|tiện ích|phòng|loại|gì|các|dịch|ở|được|tại|nằm)|[?]|$)/iu;
       const directHotelMatch = normalizedUserMsg.match(directHotelPattern);
 
       if (directHotelMatch && !hasContextualReference) {

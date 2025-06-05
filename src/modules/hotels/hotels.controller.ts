@@ -33,7 +33,7 @@ export class HotelsController {
       return { cityCounts };
     }
     const current = query.current ? +query.current : 1;
-    const pageSize = query.pageSize ? +query.pageSize : 10;
+    const pageSize = query.pageSize ? +query.pageSize : 5;
     return this.hotelsService.findAll(query, current, pageSize);
   }
 

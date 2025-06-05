@@ -104,6 +104,20 @@ export class HotelsService {
       }
     }
 
+    // Handle sentiment_score filter (scale 1-10)
+    if (filter.sentiment_score) {
+      const sentimentScore = Number(filter.sentiment_score);
+      if (!isNaN(sentimentScore) && sentimentScore >= 1 && sentimentScore <= 10) {
+        if (sentimentScore === 10) {
+          filter.sentiment_score = 10;
+        } else {
+          filter.sentiment_score = { $gte: sentimentScore };
+        }
+      } else {
+        delete filter.sentiment_score;
+      }
+    }
+
     // Handle price range filter
     if (filter.min_price) {
       const minPrice = Number(filter.min_price);

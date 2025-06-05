@@ -18,6 +18,7 @@ import {
   CreateAuthDto,
 } from './dto/create-auth.dto';
 import { MailerService } from '@nestjs-modules/mailer';
+import { GoogleOauthGuard } from './passport/google-auth.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -86,5 +87,46 @@ export class AuthController {
       },
     });
     return 'ok';
+  }
+
+  @Get('google')
+  @Public()
+  @UseGuards(GoogleOauthGuard)
+  async googleAuth() {
+    // Guard redirects to Google
+  }
+
+  @Get('google/callback')
+  @Public()
+  @UseGuards(GoogleOauthGuard)
+  async googleAuthRedirect(@Request() req) {
+    const result = await this.authService.googleLogin(req.user);
+
+    // Redirect to frontend with tokens
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const redirectUrl = `${frontendUrl}/auth/google/callback?token=${result.access_token}&refresh_token=${result.refresh_token}`;
+
+    return { url: redirectUrl };
+  }
+
+  @Post('google/signin')
+  @Public()
+  @ResponseMessage('Google sign-in')
+  async googleSignIn(@Body() googleData: any) {
+    try {
+      const { email, name, image, googleId } = googleData;
+
+      const googleUser = {
+        email,
+        name,
+        picture: image,
+        sub: googleId, // Use googleId as sub
+      };
+
+      const user = await this.authService.validateGoogleUser(googleUser);
+      return this.authService.googleLogin(user);
+    } catch (error) {
+      throw error;
+    }
   }
 }

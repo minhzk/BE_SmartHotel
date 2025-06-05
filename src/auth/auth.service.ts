@@ -90,4 +90,62 @@ export class AuthService {
   changePassword = async (data: ChangePasswordAuthDto) => {
     return await this.usersService.changePassword(data);
   };
+
+  async validateGoogleUser(googleUser: any) {
+    console.log('Validating Google user:', googleUser);
+
+    const { email, picture, sub, name } = googleUser;
+
+    // Check if user already exists
+    let user = await this.usersService.findByEmail(email);
+    console.log('Existing user found:', !!user);
+
+    if (!user) {
+      // Create new user if doesn't exist
+      const userData = {
+        email,
+        name,
+        password: '', // No password for Google users
+        image: picture,
+        isActive: true,
+        authProvider: 'google',
+        googleId: sub, // Use 'sub' which is the Google user ID
+      };
+
+      console.log('Creating new Google user:', userData);
+      user = await this.usersService.createGoogleUser(userData);
+    } else {
+      // Update existing user with Google info if needed
+      if (!user.authProvider || user.authProvider !== 'google') {
+        console.log('Updating existing user with Google provider');
+        await this.usersService.updateUserProvider(
+          user._id.toString(),
+          'google',
+          picture,
+        );
+      }
+    }
+
+    console.log('Final validated user:', user);
+    return user;
+  }
+
+  async googleLogin(user: any) {
+    const payload = { username: user.email, sub: user._id };
+    const tokens = this.authTokenService.generateTokens(payload);
+
+    return {
+      user: {
+        email: user.email,
+        _id: user._id,
+        name: user?.name,
+        phone: user?.phone,
+        role: user?.role,
+        image: user?.image,
+        authProvider: user?.authProvider,
+      },
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+    };
+  }
 }

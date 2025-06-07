@@ -20,4 +20,8 @@ export class FilterBookingDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @IsOptional()
+  @IsString()
+  user_id?: string;
 }

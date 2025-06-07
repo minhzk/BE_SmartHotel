@@ -209,6 +209,7 @@ export class BookingsService {
     delete filter.pageSize;
     delete filter.dateRange;
     delete filter.search;
+    delete filter.user_id;
 
     // Xây dựng bộ lọc từ các tham số
     const customFilter: any = { ...filter };
@@ -217,6 +218,9 @@ export class BookingsService {
     const user = await this.userModel.findById(userId);
     if (user && user.role !== 'ADMIN') {
       customFilter.user_id = new mongoose.Types.ObjectId(userId);
+    } else if (filters?.user_id) {
+      // Admin có thể filter theo user_id cụ thể
+      customFilter.user_id = new mongoose.Types.ObjectId(filters.user_id);
     }
 
     // Xử lý lọc theo khoảng thời gian check-in

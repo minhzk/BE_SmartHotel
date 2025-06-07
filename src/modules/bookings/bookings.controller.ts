@@ -55,6 +55,7 @@ export class BookingsController {
     @Query('payment_status') paymentStatus: string,
     @Query('deposit_status') depositStatus: string,
     @Query('search') search: string,
+    @Query('user_id') user_id: string,
   ) {
     const filters: FilterBookingDto = {
       dateRange,
@@ -62,6 +63,7 @@ export class BookingsController {
       payment_status: paymentStatus,
       deposit_status: depositStatus,
       search,
+      user_id
     };
 
     return this.bookingsService.findAll(
@@ -69,7 +71,7 @@ export class BookingsController {
       query,
       +current,
       +pageSize,
-      filters,
+      filters
     );
   }
 

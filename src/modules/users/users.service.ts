@@ -30,7 +30,8 @@ export class UsersService {
     return false;
   };
   async create(createUserDto: CreateUserDto) {
-    const { name, email, password, phone, image } = createUserDto;
+    const { name, email, password, phone, image, role, isActive } =
+      createUserDto;
 
     //check email
     const isExist = await this.isEmailExist(email);
@@ -46,6 +47,8 @@ export class UsersService {
       password: hashPassword,
       phone,
       image,
+      role: role || 'USER', // default to 'user' if not provided
+      isActive: isActive !== undefined ? isActive : true, // default to true if not provided
     });
     return {
       _id: user._id,

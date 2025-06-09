@@ -179,7 +179,7 @@ export class UsersService {
     // send email
     this.mailerService.sendMail({
       to: user.email, // list of receivers
-      subject: 'Activate your account at Minh Foods', // Subject line
+      subject: 'Activate your account at Smart Hotel', // Subject line
       template: 'register',
       context: {
         name: user?.name ?? user.email,
@@ -241,7 +241,7 @@ export class UsersService {
     //send email
     this.mailerService.sendMail({
       to: user.email, // list of receivers
-      subject: 'Activate your account at Minh Foods', // Subject line
+      subject: 'Activate your account at Smart Hotel', // Subject line
       template: 'register',
       context: {
         name: user?.name ?? user.email,
@@ -271,7 +271,7 @@ export class UsersService {
     //send email
     this.mailerService.sendMail({
       to: user.email, // list of receivers
-      subject: 'Change your password at Minh Foods', // Subject line
+      subject: 'Change your password at Smart Hotel', // Subject line
       template: 'password-reset',
       context: {
         name: user?.name ?? user.email,

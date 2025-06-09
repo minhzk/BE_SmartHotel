@@ -2,30 +2,83 @@
 <html>
 
 <head>
-    <title>Minh Dev Activation Email</title>
+    <title>Smart Hotel - Kích hoạt tài khoản</title>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 </head>
 
 <body
-    style="margin: 0; padding: 0; min-width: 100%; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5; background-color: #FAFAFA; color: #222222;">
-    <div style="max-width: 600px; margin: 0 auto;">
-        <div style="background-color: #0070f3; padding: 24px; color: #ffffff;">
+    style="margin: 0; padding: 0; min-width: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 16px; line-height: 1.6; background-color: #f8f9fa; color: #333333;">
+    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <!-- Header -->
+        <div
+            style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 24px; text-align: center;">
             <h1
-                style="font-size: 24px; font-weight: 700; line-height: 1.25; margin-top: 0; margin-bottom: 15px; text-align: center;">
-                Welcome to Minh Dev</h1>
+                style="font-size: 28px; font-weight: 700; margin: 0; color: #ffffff; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">
+                🏨 Smart Hotel
+            </h1>
+            <p style="margin: 8px 0 0 0; color: #e8eaff; font-size: 16px;">
+                Chào mừng bạn đến với Smart Hotel
+            </p>
         </div>
-        <div style="padding: 24px; background-color: #ffffff;">
-            <p style="margin-top: 0; margin-bottom: 24px;">Hello {{name}},</p>
-            <p style="margin-top: 0; margin-bottom: 24px;">Thank you for registering with Minh DEV. To activate your
-                account, please use the following activation code:</p>
-            <h2
-                style="font-size: 20px; font-weight: 700; line-height: 1.25; margin-top: 0; margin-bottom: 15px; text-align: center;">
-                {{activationCode}}</h2>
-            <p style="margin-top: 0; margin-bottom: 24px;">Please enter this code on the activation page within the next
-                5 minutes.</p>
-            <p style="margin-top: 0; margin-bottom: 24px;">If you did not register for a Minh DEV account, please
-                ignore this email.</p>
+
+        <!-- Content -->
+        <div style="padding: 40px 32px;">
+            <h2 style="margin-top: 0; margin-bottom: 24px; color: #333; font-size: 24px; font-weight: 600;">
+                Xin chào {{name}}! 👋
+            </h2>
+
+            <p style="margin-bottom: 24px; font-size: 16px; line-height: 1.6;">
+                Cảm ơn bạn đã đăng ký tài khoản tại <strong>Smart Hotel</strong>. Để hoàn tất quá trình đăng ký, vui
+                lòng sử dụng mã kích hoạt dưới đây:
+            </p>
+
+            <!-- Activation Code Box -->
+            <div
+                style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 32px; border-radius: 12px; text-align: center; margin: 32px 0; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);">
+                <p
+                    style="margin: 0 0 12px 0; color: #ffffff; font-size: 14px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase;">
+                    Mã kích hoạt của bạn
+                </p>
+                <h2
+                    style="font-size: 36px; font-weight: 700; margin: 0; color: #ffffff; letter-spacing: 4px; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">
+                    {{activationCode}}
+                </h2>
+            </div>
+
+            <div
+                style="background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 16px; margin: 24px 0;">
+                <p style="margin: 0; color: #856404; font-size: 14px; font-weight: 500;">
+                    ⏰ <strong>Lưu ý quan trọng:</strong> Mã kích hoạt này chỉ có hiệu lực trong vòng <strong>5
+                        phút</strong> kể từ khi nhận email.
+                </p>
+            </div>
+
+            <p style="margin-bottom: 24px; font-size: 16px; line-height: 1.6;">
+                Vui lòng nhập mã này vào trang kích hoạt để hoàn tất việc tạo tài khoản. Sau khi kích hoạt thành công,
+                bạn sẽ có thể trải nghiệm đầy đủ các dịch vụ của Smart Hotel.
+            </p>
+
+            <hr
+                style="border: none; height: 1px; background: linear-gradient(to right, transparent, #ddd, transparent); margin: 32px 0;">
+
+            <p style="margin-bottom: 8px; font-size: 14px; color: #666; line-height: 1.5;">
+                Nếu bạn không thực hiện đăng ký tài khoản này, vui lòng bỏ qua email này.
+            </p>
+            <p style="margin: 0; font-size: 14px; color: #666; line-height: 1.5;">
+                Cần hỗ trợ? Liên hệ với chúng tôi qua email: <a href="mailto:support@smarthotel.com"
+                    style="color: #667eea; text-decoration: none;">support@smarthotel.com</a>
+            </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="background-color: #f8f9fa; padding: 24px 32px; text-align: center; border-top: 1px solid #e9ecef;">
+            <p style="margin: 0; font-size: 14px; color: #6c757d;">
+                © 2025 Smart Hotel. Tất cả quyền được bảo lưu.
+            </p>
+            <p style="margin: 8px 0 0 0; font-size: 12px; color: #adb5bd;">
+                Email này được gửi tự động, vui lòng không phản hồi.
+            </p>
         </div>
     </div>
 </body>

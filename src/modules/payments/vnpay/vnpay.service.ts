@@ -30,13 +30,13 @@ export class VnpayService {
   // Đổi URL return mặc định thành Backend endpoint
   private readonly vnpReturnUrl =
     this.configService.get<string>('VNPAY_RETURN_URL') ||
-    'http://localhost:8080/api/v1/payments/vnpay-return';
+    'http://localhost:8090/api/v1/payments/vnpay-return';
   private readonly vnpApiUrl =
     this.configService.get<string>('VNPAY_API_URL') ||
     'https://sandbox.vnpayment.vn/merchant_webapi/api/transaction';
   private readonly ipnUrl =
     this.configService.get<string>('VNPAY_IPN_URL') ||
-    'http://localhost:8080/api/v1/payments/vnpay-ipn';
+    'http://localhost:8090/api/v1/payments/vnpay-ipn';
   // Thêm Frontend URL để redirect sau khi xử lý thanh toán
   private readonly frontendResultUrl =
     this.configService.get<string>('FRONTEND_PAYMENT_RESULT_URL') ||

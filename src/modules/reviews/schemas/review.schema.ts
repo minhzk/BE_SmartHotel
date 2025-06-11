@@ -47,6 +47,9 @@ export class Review {
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true })
   user_id: string;
 
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Booking', required: true })
+  booking_id: string;
+
   @Prop({ required: true, min: 1, max: 5 })
   rating: number;
 

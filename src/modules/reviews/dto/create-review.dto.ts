@@ -20,6 +20,10 @@ export class CreateReviewDto {
   @IsNotEmpty()
   hotel_id: string;
 
+  @IsMongoId()
+  @IsNotEmpty()
+  booking_id: string;
+
   @IsNumber()
   @Min(1)
   @Max(5)

@@ -33,14 +33,37 @@ export class ReviewsService {
       throw new NotFoundException('Hotel not found');
     }
 
-    // Kiểm tra xem người dùng đã từng đặt phòng tại khách sạn này chưa
-    // và đã qua thời gian checkout hay chưa
+    // Check if booking exists and belongs to user
+    const booking = await this.bookingModel.findById(
+      createReviewDto.booking_id,
+    );
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    if (booking.user_id.toString() !== userId) {
+      throw new BadRequestException('Booking does not belong to you');
+    }
+
+    if (booking.hotel_id.toString() !== createReviewDto.hotel_id) {
+      throw new BadRequestException('Booking does not match the hotel');
+    }
+
+    // Kiểm tra xem đã đánh giá khách sạn này chưa (thay vì kiểm tra booking)
+    const existingReview = await this.reviewModel.findOne({
+      user_id: userId,
+      hotel_id: createReviewDto.hotel_id,
+    });
+
+    if (existingReview) {
+      throw new BadRequestException('You have already reviewed this hotel');
+    }
+
+    // Kiểm tra xem người dùng có thể đánh giá khách sạn này không
     const canReview = await this.verifyUserCanReviewHotel(
       userId,
       createReviewDto.hotel_id,
     );
-
-    console.log('User can review:', canReview);
 
     if (!canReview) {
       throw new BadRequestException(
@@ -77,6 +100,7 @@ export class ReviewsService {
       review_id: reviewId,
       user_id: userId,
       hotel_id: createReviewDto.hotel_id,
+      booking_id: createReviewDto.booking_id,
       rating: createReviewDto.rating,
       review_text: createReviewDto.review_text,
       sentiment,
@@ -449,14 +473,6 @@ export class ReviewsService {
       now.getMonth(),
       now.getDate(),
     );
-    const todayNoon = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      12,
-      0,
-      0,
-    );
 
     // Tìm booking của user tại hotel này đã checkout
     const completedBooking = await this.bookingModel.findOne({
@@ -475,14 +491,6 @@ export class ReviewsService {
       checkoutDate.getMonth(),
       checkoutDate.getDate(),
     );
-    const checkoutDateNoon = new Date(
-      checkoutDate.getFullYear(),
-      checkoutDate.getMonth(),
-      checkoutDate.getDate(),
-      12,
-      0,
-      0,
-    );
 
     // Kiểm tra điều kiện checkout
     let canReviewBasedOnTime = false;
@@ -494,7 +502,8 @@ export class ReviewsService {
     // Điều kiện 2: Ngày check-out là hôm nay và đã qua 12h trưa
     else if (
       checkoutDateStart.getTime() === todayStart.getTime() &&
-      now >= checkoutDateNoon
+      now >=
+        new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0)
     ) {
       console.log('Condition 2: Checkout date is today and past 12 PM');
       canReviewBasedOnTime = true;

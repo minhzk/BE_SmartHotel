@@ -58,9 +58,11 @@ export class User {
   ])
   transactions: Record<string, any>[];
 
+  // Thêm trường authProvider để lưu thông tin nhà cung cấp xác thực
   @Prop()
   authProvider: string;
 
+  // Thêm trường googleId để lưu ID người dùng từ Google
   @Prop()
   googleId: string;
 }

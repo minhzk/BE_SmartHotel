@@ -15,7 +15,7 @@ export class SentimentLog {
   @Prop()
   processed_text: string;
 
-  @Prop({ required: true, min: 0, max: 10 })
+  @Prop({ required: true, min: 1, max: 5 })
   sentiment_score: number;
 
   @Prop({ type: String, enum: SentimentLabel })

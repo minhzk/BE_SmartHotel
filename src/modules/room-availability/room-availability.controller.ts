@@ -114,10 +114,22 @@ export class RoomAvailabilityController {
     @Query('roomId') roomId: string,
     @Query('startDate') startDateStr: string,
     @Query('endDate') endDateStr: string,
+    @Query('defaultPrice') defaultPrice: number,
   ) {
     const startDate = dayjs.utc(startDateStr).startOf('day').toDate();
     const endDate = dayjs.utc(endDateStr).startOf('day').toDate();
 
+    // Ép kiểu defaultPrice về number để tránh lỗi giá trị string
+    const defaultPriceNumber = Number(defaultPrice);
+
+    // Lấy các bản ghi room availability trong khoảng ngày
+    const records = await this.roomAvailabilityService.findByRoomAndDateRange(
+      roomId,
+      startDate,
+      endDate,
+    );
+
+    // Kiểm tra có khả dụng không
     const isAvailable =
       await this.roomAvailabilityService.checkRoomAvailabilityForDateRange(
         roomId,
@@ -125,11 +137,22 @@ export class RoomAvailabilityController {
         endDate,
       );
 
+    // Lấy giá từng ngày trong khoảng (không bao gồm ngày check-out)
+    const prices_by_date = await this.roomAvailabilityService.getPricesByDate(
+      roomId,
+      dayjs.utc(startDate),
+      dayjs.utc(endDate),
+      defaultPriceNumber
+    );
+
+    console.log('Prices by date:', prices_by_date);
+
     return {
       roomId,
-      startDate,
-      endDate,
+      startDate: startDate,
+      endDate: endDate,
       isAvailable,
+      prices_by_date, // [{ date: '2025-06-25', price: 650 }, ...]
     };
   }
 

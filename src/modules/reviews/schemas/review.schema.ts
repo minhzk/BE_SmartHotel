@@ -53,7 +53,7 @@ export class Review {
   @Prop({ required: true, min: 1, max: 5 })
   rating: number;
 
-  @Prop({ min: 0, max: 10 })
+  @Prop({ min: 1, max: 5 })
   sentiment: number;
 
   @Prop({ type: String, enum: SentimentLabel })

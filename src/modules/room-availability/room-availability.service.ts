@@ -12,10 +12,12 @@ import mongoose from 'mongoose';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import isBetween from 'dayjs/plugin/isBetween';
+import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 
 // Cấu hình dayjs để sử dụng plugin
 dayjs.extend(utc);
 dayjs.extend(isBetween);
+dayjs.extend(isSameOrAfter);
 
 @Injectable()
 export class RoomAvailabilityService {
@@ -369,5 +371,54 @@ export class RoomAvailabilityService {
       message: `Updated ${updatedRecords.modifiedCount} room availability records`,
       modifiedCount: updatedRecords.modifiedCount,
     };
+  }
+
+  /**
+   * Lấy giá từng ngày trong khoảng, ưu tiên price_override nếu có, không thì lấy giá mặc định
+   * @param roomId
+   * @param startDate dayjs object
+   * @param endDate dayjs object
+   * @param defaultPrice (optional) giá mặc định nếu không có price_override
+   */
+  async getPricesByDate(
+    roomId: string,
+    startDate: dayjs.Dayjs,
+    endDate: dayjs.Dayjs,
+    defaultPrice?: number,
+  ): Promise<{ date: string; price: number }[]> {
+    // Lấy tất cả các bản ghi availability của phòng trong khoảng ngày
+    const records = await this.findByRoomAndDateRange(
+      roomId,
+      startDate.toDate(),
+      endDate.toDate(),
+    );
+
+    // Nếu chưa có giá mặc định
+    let fallbackPrice = defaultPrice;
+    if (fallbackPrice === undefined) {
+      fallbackPrice = 0; 
+    }
+
+    const prices: { date: string; price: number }[] = [];
+    let current = startDate.clone();
+    while (current.isBefore(endDate, 'day')) {
+      // Tìm bản ghi availability chứa ngày này
+      const record = records.find(
+        (r) =>
+          dayjs(current).isSameOrAfter(dayjs(r.start_date), 'day') &&
+          !dayjs(current).isAfter(dayjs(r.end_date), 'day'),
+      );
+      console.log('record:', record);
+      let price = fallbackPrice;
+      if (record && record.price_override != null) {
+        price = record.price_override;
+      }
+      prices.push({
+        date: current.format('YYYY-MM-DD'),
+        price,
+      });
+      current = current.add(1, 'day');
+    }
+    return prices;
   }
 }

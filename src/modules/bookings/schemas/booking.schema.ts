@@ -46,7 +46,7 @@ export class Booking {
   room_id: string;
 
   @Prop({ required: true })
-  check_in_date: Date; // Mặc định là 12:00 PM ngày check-in
+  check_in_date: Date; // Mặc định là 14:00 PM ngày check-in
 
   @Prop({ required: true })
   check_out_date: Date; // Mặc định là 12:00 PM ngày check-out

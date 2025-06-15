@@ -93,7 +93,7 @@ export class CreateRoomDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => BedConfigurationDto)
-  @IsOptional()
+  @IsNotEmpty()
   bed_configuration: BedConfigurationDto[];
 
   @IsArray()

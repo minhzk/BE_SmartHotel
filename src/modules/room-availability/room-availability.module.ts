@@ -6,11 +6,13 @@ import {
   RoomAvailability,
   RoomAvailabilitySchema,
 } from './schemas/room-availability.schema';
+import { Room, RoomSchema } from '../rooms/schemas/room.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: RoomAvailability.name, schema: RoomAvailabilitySchema },
+      { name: Room.name, schema: RoomSchema },
     ]),
   ],
   controllers: [RoomAvailabilityController],

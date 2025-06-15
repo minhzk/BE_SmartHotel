@@ -13,6 +13,7 @@ import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import isBetween from 'dayjs/plugin/isBetween';
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
+import { Room } from '../rooms/schemas/room.schema';
 
 // Cấu hình dayjs để sử dụng plugin
 dayjs.extend(utc);
@@ -24,6 +25,8 @@ export class RoomAvailabilityService {
   constructor(
     @InjectModel(RoomAvailability.name)
     private roomAvailabilityModel: Model<RoomAvailability>,
+    @InjectModel(Room.name)
+    private roomModel: Model<Room>, // Thêm inject Room model
   ) {}
 
   async create(createRoomAvailabilityDto: CreateRoomAvailabilityDto) {
@@ -393,10 +396,11 @@ export class RoomAvailabilityService {
       endDate.toDate(),
     );
 
-    // Nếu chưa có giá mặc định
+    // Nếu chưa có giá mặc định hoặc defaultPrice là null, lấy từ Room model
     let fallbackPrice = defaultPrice;
-    if (fallbackPrice === undefined) {
-      fallbackPrice = 0; 
+    if (fallbackPrice === undefined || fallbackPrice === null) {
+      const room = await this.roomModel.findById(roomId);
+      fallbackPrice = room?.price_per_night ?? 0;
     }
 
     const prices: { date: string; price: number }[] = [];
@@ -408,7 +412,6 @@ export class RoomAvailabilityService {
           dayjs(current).isSameOrAfter(dayjs(r.start_date), 'day') &&
           !dayjs(current).isAfter(dayjs(r.end_date), 'day'),
       );
-      console.log('record:', record);
       let price = fallbackPrice;
       if (record && record.price_override != null) {
         price = record.price_override;

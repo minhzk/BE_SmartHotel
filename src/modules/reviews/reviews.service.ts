@@ -49,25 +49,25 @@ export class ReviewsService {
       throw new BadRequestException('Booking does not match the hotel');
     }
 
-    // Kiểm tra xem đã đánh giá khách sạn này chưa (thay vì kiểm tra booking)
+    // Kiểm tra xem đã đánh giá booking này chưa
     const existingReview = await this.reviewModel.findOne({
       user_id: userId,
-      hotel_id: createReviewDto.hotel_id,
+      booking_id: createReviewDto.booking_id,
     });
 
     if (existingReview) {
-      throw new BadRequestException('You have already reviewed this hotel');
+      throw new BadRequestException('You have already reviewed this booking');
     }
 
-    // Kiểm tra xem người dùng có thể đánh giá khách sạn này không
-    const canReview = await this.verifyUserCanReviewHotel(
+    // Kiểm tra xem người dùng có thể đánh giá booking này không
+    const canReview = await this.verifyUserCanReviewBooking(
       userId,
-      createReviewDto.hotel_id,
+      createReviewDto.booking_id,
     );
 
     if (!canReview) {
       throw new BadRequestException(
-        'You can only review hotels after completing your stay',
+        'You can only review bookings after completing your stay',
       );
     }
 
@@ -448,23 +448,23 @@ export class ReviewsService {
     }
   }
 
-  // Cập nhật phương thức để kiểm tra khả năng đánh giá với nhiều điều kiện hơn
-  private async verifyUserCanReviewHotel(
+  // Cập nhật phương thức để kiểm tra khả năng đánh giá theo booking
+  private async verifyUserCanReviewBooking(
     userId: string,
-    hotelId: string,
+    bookingId: string,
   ): Promise<boolean> {
     // Lấy thời gian hiện tại theo UTC+7
     const now = new Date(Date.now() + 7 * 60 * 60 * 1000);
 
-    // Kiểm tra xem người dùng đã đánh giá khách sạn này chưa
+    // Kiểm tra xem người dùng đã đánh giá booking này chưa
     const existingReview = await this.reviewModel.findOne({
       user_id: userId,
-      hotel_id: hotelId,
+      booking_id: bookingId,
     });
 
     if (existingReview) {
-      console.log(`User ${userId} has already reviewed hotel ${hotelId}`);
-      return false; // Người dùng đã đánh giá khách sạn này rồi
+      console.log(`User ${userId} has already reviewed booking ${bookingId}`);
+      return false; // Người dùng đã đánh giá booking này rồi
     }
 
     // Tạo thời gian so sánh
@@ -474,18 +474,24 @@ export class ReviewsService {
       now.getDate(),
     );
 
-    // Tìm booking của user tại hotel này đã checkout
-    const completedBooking = await this.bookingModel.findOne({
-      user_id: userId,
-      hotel_id: hotelId,
-      status: 'completed', // Booking đã hoàn thành (không phải đã hủy)
-    });
+    // Tìm booking cụ thể
+    const booking = await this.bookingModel.findById(bookingId);
 
-    if (!completedBooking) {
-      return false; // Không tìm thấy booking hoàn thành nào
+    if (!booking) {
+      return false; // Không tìm thấy booking
     }
 
-    const checkoutDate = new Date(completedBooking.check_out_date);
+    // Kiểm tra booking thuộc về user
+    if (booking.user_id.toString() !== userId) {
+      return false; // Booking không thuộc về user này
+    }
+
+    // Kiểm tra booking đã hoàn thành
+    if (booking.status !== 'completed') {
+      return false; // Booking chưa hoàn thành
+    }
+
+    const checkoutDate = new Date(booking.check_out_date);
     const checkoutDateStart = new Date(
       checkoutDate.getFullYear(),
       checkoutDate.getMonth(),
@@ -518,9 +524,7 @@ export class ReviewsService {
     reviewDeadline.setDate(reviewDeadline.getDate() + 30);
 
     if (now > reviewDeadline) {
-      console.log(
-        `Review period has expired for booking ${completedBooking._id}`,
-      );
+      console.log(`Review period has expired for booking ${booking._id}`);
       return false; // Đã quá hạn 30 ngày để đánh giá
     }
 

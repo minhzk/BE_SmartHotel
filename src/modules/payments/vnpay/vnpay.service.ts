@@ -1,9 +1,14 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as crypto from 'crypto';
+// import * as crypto from 'crypto';
 import dayjs from 'dayjs';
-import * as querystring from 'querystring';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+// import * as querystring from 'querystring';
 import { InjectModel } from '@nestjs/mongoose';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 import { Model } from 'mongoose';
 import { v4 as uuidv4 } from 'uuid';
 import { Payment, PaymentStatus, PaymentType } from '../schemas/payment.schema';
@@ -64,8 +69,8 @@ export class VnpayService {
     const secretKey = this.vnpHashSecret;
     let vnpUrl = this.vnpUrl;
 
-    const date = new Date();
-    const createDate = dayjs(date).format('YYYYMMDDHHmmss');
+    const now = dayjs().tz('Asia/Ho_Chi_Minh');
+    const createDate = now.format('YYYYMMDDHHmmss');
     const orderId = payment._id.toString();
     const amount = createDto.amount * 100; // Convert to lowest currency unit (cents)
 
@@ -93,6 +98,7 @@ export class VnpayService {
 
     let querystring = require('qs');
     let signData = querystring.stringify(vnp_Params, { encode: false });
+    let crypto = require('crypto');
     let hmac = crypto.createHmac('sha512', secretKey);
     let signed = hmac.update(Buffer.from(signData, 'utf-8')).digest('hex');
     vnp_Params['vnp_SecureHash'] = signed;
@@ -112,6 +118,7 @@ export class VnpayService {
     const sortedParams = this.sortObject(vnpParams);
 
     const querystring = require('qs');
+    let crypto = require('crypto');
     const signData = querystring.stringify(sortedParams, { encode: false });
     const hmac = crypto.createHmac('sha512', this.vnpHashSecret);
     const calculatedHash = hmac

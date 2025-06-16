@@ -1255,7 +1255,7 @@ export class ChatbotService {
         normalizedUserMsg.toLowerCase().includes('hủy phòng') ||
         normalizedUserMsg.toLowerCase().includes('hoàn tiền')
       ) {
-        return `Chính sách đặt phòng và hủy phòng chung của chúng tôi:\n\n- Đặt cọc: 30% giá trị đặt phòng để đảm bảo việc đặt phòng\n- Hủy miễn phí: Trước 2 ngày so với ngày nhận phòng\n- Hoàn tiền: 100% tiền đặt cọc nếu hủy trong thời hạn miễn phí\n- Check-in: 14:00, Check-out: 12:00\n\nMỗi khách sạn có thể có chính sách riêng. Vui lòng kiểm tra trang chi tiết khách sạn để biết thêm thông tin.`;
+        return `Chính sách đặt phòng và hủy phòng chung của chúng tôi:\n\n- Đặt cọc: 25% giá trị đặt phòng để đảm bảo việc đặt phòng\n- Hủy miễn phí: Trước 2 ngày so với ngày nhận phòng\n- Hoàn tiền: 100% tiền đặt cọc nếu hủy trong thời hạn miễn phí\n- Check-in: 14:00, Check-out: 12:00\n\nMỗi khách sạn có thể có chính sách riêng. Vui lòng kiểm tra trang chi tiết khách sạn để biết thêm thông tin.`;
       }
 
       // Nếu user đang hỏi về danh sách khách sạn nói chung

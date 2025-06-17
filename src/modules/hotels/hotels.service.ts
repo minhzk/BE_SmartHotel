@@ -107,7 +107,11 @@ export class HotelsService {
     // Handle sentiment_score filter (scale 1-10)
     if (filter.sentiment_score) {
       const sentimentScore = Number(filter.sentiment_score);
-      if (!isNaN(sentimentScore) && sentimentScore >= 1 && sentimentScore <= 10) {
+      if (
+        !isNaN(sentimentScore) &&
+        sentimentScore >= 1 &&
+        sentimentScore <= 10
+      ) {
         if (sentimentScore === 10) {
           filter.sentiment_score = 10;
         } else {
@@ -279,6 +283,15 @@ export class HotelsService {
       .skip(skip)
       .sort(sort as any);
 
+    // Round rating to 1 decimal place for each hotel
+    const processedResults = results.map((hotel) => {
+      const hotelObj = hotel.toObject();
+      if (hotelObj.rating && typeof hotelObj.rating === 'number') {
+        hotelObj.rating = Math.round(hotelObj.rating * 10) / 10;
+      }
+      return hotelObj;
+    });
+
     return {
       meta: {
         current: current,
@@ -286,7 +299,7 @@ export class HotelsService {
         pages: totalPages,
         total: totalItems,
       },
-      results,
+      results: processedResults,
     };
   }
 
@@ -317,7 +330,12 @@ export class HotelsService {
       throw new BadRequestException(`Hotel with ID ${id} not found`);
     }
 
-    return hotel;
+    const hotelObj = hotel.toObject();
+    if (hotelObj.rating && typeof hotelObj.rating === 'number') {
+      hotelObj.rating = Math.round(hotelObj.rating * 10) / 10;
+    }
+
+    return hotelObj;
   }
 
   async update(id: string, updateHotelDto: UpdateHotelDto) {

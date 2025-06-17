@@ -23,6 +23,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
 import { FavoritesModule } from './modules/favorites/favorites.module';
 import { ScheduleModule } from '@nestjs/schedule'; // Import ScheduleModule
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 
 @Module({
   imports: [
@@ -76,6 +77,7 @@ import { ScheduleModule } from '@nestjs/schedule'; // Import ScheduleModule
     EventEmitterModule.forRoot(),
     CloudinaryModule,
     FavoritesModule,
+    AnalyticsModule,
     ScheduleModule.forRoot(), // Kích hoạt schedule module
   ],
   controllers: [AppController],

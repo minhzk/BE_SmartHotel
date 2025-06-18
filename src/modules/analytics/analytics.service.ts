@@ -18,7 +18,15 @@ export class AnalyticsService {
 
   async getOverviewStats() {
     const now = new Date();
-    const lastMonth = dayjs().subtract(1, 'month').toDate();
+    // Calculate the start and end of the current month
+    const startOfCurrentMonth = dayjs().startOf('month').toDate();
+    const endOfCurrentMonth = dayjs().endOf('month').toDate();
+    // Calculate the start and end of the previous month
+    const startOfLastMonth = dayjs()
+      .subtract(1, 'month')
+      .startOf('month')
+      .toDate();
+    const endOfLastMonth = dayjs().subtract(1, 'month').endOf('month').toDate();
 
     // Calculate total revenue
     const revenueAgg = await this.paymentModel.aggregate([
@@ -27,31 +35,48 @@ export class AnalyticsService {
     ]);
     const totalRevenue = revenueAgg[0]?.total || 0;
 
-    // Calculate revenue growth
-    const lastMonthRevenue = await this.paymentModel.aggregate([
+    // Calculate revenue for current month
+    const currentMonthRevenueAgg = await this.paymentModel.aggregate([
       {
         $match: {
           status: 'completed',
           createdAt: {
-            $gte: lastMonth,
-            $lt: dayjs().subtract(1, 'month').add(1, 'month').toDate(),
+            $gte: startOfCurrentMonth,
+            $lte: endOfCurrentMonth,
           },
         },
       },
       { $group: { _id: null, total: { $sum: '$amount' } } },
     ]);
-    const lastMonthTotal = lastMonthRevenue[0]?.total || 0;
+    const currentMonthRevenue = currentMonthRevenueAgg[0]?.total || 0;
+
+    // Calculate revenue for last month
+    const lastMonthRevenueAgg = await this.paymentModel.aggregate([
+      {
+        $match: {
+          status: 'completed',
+          createdAt: {
+            $gte: startOfLastMonth,
+            $lte: endOfLastMonth,
+          },
+        },
+      },
+      { $group: { _id: null, total: { $sum: '$amount' } } },
+    ]);
+    const lastMonthRevenue = lastMonthRevenueAgg[0]?.total || 0;
+
+    // Calculate revenue growth between current month and last month
     const revenueGrowth =
-      lastMonthTotal > 0
-        ? ((totalRevenue - lastMonthTotal) / lastMonthTotal) * 100
+      lastMonthRevenue > 0
+        ? ((currentMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100
         : 0;
 
     // Total bookings
     const totalBookings = await this.bookingModel.countDocuments();
     const lastMonthBookings = await this.bookingModel.countDocuments({
       createdAt: {
-        $gte: lastMonth,
-        $lt: dayjs().subtract(1, 'month').add(1, 'month').toDate(),
+        $gte: startOfLastMonth,
+        $lt: endOfLastMonth,
       },
     });
     const bookingGrowth =

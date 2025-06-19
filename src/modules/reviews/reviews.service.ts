@@ -80,7 +80,7 @@ export class ReviewsService {
 
     try {
       // Detect language and translate to English if needed
-      const englishText = await this.translateToEnglishIfNeeded(
+      const englishText = await this.correctSpellingAndTranslate(
         createReviewDto.review_text,
       );
 
@@ -336,7 +336,7 @@ export class ReviewsService {
     ) {
       try {
         // Detect language and translate to English if needed
-        const englishText = await this.translateToEnglishIfNeeded(
+        const englishText = await this.correctSpellingAndTranslate(
           updateReviewDto.review_text,
         );
 
@@ -531,88 +531,64 @@ export class ReviewsService {
     return true;
   }
 
-  private async translateToEnglishIfNeeded(text: string): Promise<string> {
+  private async correctSpellingAndTranslate(text: string): Promise<string> {
+    const axios = require('axios');
+    const apiKey = process.env.OPENAI_API_KEY;
+    const modelVersion = process.env.OPENAI_MODEL;
+
     try {
-      // Simple language detection - check for Vietnamese characters
-      const vietnamesePattern =
-        /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđĐ]/;
+      const systemPrompt = `
+        You are a multilingual assistant. Your task is:
+        1. Detect the input language.
+        2. Fix spelling and grammar mistakes in that language (if any).
+        3. If the corrected sentence is not in English, translate it to English.
+        4. Return the result as a JSON object with these fields:
+        {
+          "original": "<original_input>",
+          "corrected": "<corrected_input_same_language>",
+          "translated": "<final_english_translation>"
+        }
+        Do not include any extra explanation or formatting. Only return the pure JSON.
+            `;
 
-      // If text contains Vietnamese characters, translate to English
-      if (vietnamesePattern.test(text)) {
-        console.log('Vietnamese text detected, translating to English...');
-
-        // Use Google Translate API or similar service
-        const translatedText = await this.translateText(text, 'vi', 'en');
-        console.log('Original text:', text);
-        console.log('Translated text:', translatedText);
-
-        return translatedText;
-      }
-
-      // If text appears to be English, return as is
-      return text;
-    } catch (error) {
-      console.error('Translation failed, using original text:', error);
-      return text; // Fallback to original text if translation fails
-    }
-  }
-
-  private async translateText(
-    text: string,
-    fromLang: string,
-    toLang: string,
-  ): Promise<string> {
-    try {
-      // Using MyMemory API (free, no API key required)
-      const axios = require('axios');
-
-      const response = await axios.get(
-        `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${fromLang}|${toLang}`,
+      const response = await axios.post(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          model: modelVersion,
+          messages: [
+            {
+              role: 'system',
+              content: systemPrompt.trim(),
+            },
+            {
+              role: 'user',
+              content: `Input: "${text}"`,
+            },
+          ],
+          temperature: 0.2,
+          max_tokens: 512,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+        },
       );
 
-      console.log('MyMemory API response:', response.data);
+      const raw = response.data.choices[0]?.message?.content?.trim();
+      const json = JSON.parse(raw);
 
-      if (response.data && response.data.responseData) {
-        return response.data.responseData.translatedText;
-      }
+      console.log('📝 Original:', json.original);
+      console.log('✅ Corrected:', json.corrected);
+      console.log('🌐 Translated:', json.translated);
 
-      throw new Error('Translation API response invalid');
+      return json.translated || text;
     } catch (error) {
-      console.error('MyMemory API error:', error);
-
-      // Fallback: Simple word replacement for common Vietnamese words
-      return this.simpleVietnameseToEnglish(text);
+      console.error('OpenAI correction/translation error:', error.response?.data || error.message);
+      return text;
     }
   }
 
-  private simpleVietnameseToEnglish(text: string): string {
-    const commonTranslations = {
-      tốt: 'good',
-      xấu: 'bad',
-      'tuyệt vời': 'excellent',
-      'rất tốt': 'very good',
-      'không tốt': 'not good',
-      'dịch vụ': 'service',
-      phòng: 'room',
-      'sạch sẽ': 'clean',
-      bẩn: 'dirty',
-      'nhân viên': 'staff',
-      'thân thiện': 'friendly',
-      'giá cả': 'price',
-      đắt: 'expensive',
-      rẻ: 'cheap',
-      'khách sạn': 'hotel',
-      'ăn sáng': 'breakfast',
-      'điều hòa': 'air conditioning',
-    };
 
-    let translatedText = text.toLowerCase();
-
-    Object.entries(commonTranslations).forEach(([vietnamese, english]) => {
-      const regex = new RegExp(vietnamese, 'gi');
-      translatedText = translatedText.replace(regex, english);
-    });
-
-    return translatedText;
-  }
 }

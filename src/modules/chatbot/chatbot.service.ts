@@ -346,16 +346,54 @@ export class ChatbotService {
     return newFeedback;
   }
 
+  // Hàm mới: Tóm tắt/ngắn gọn hóa câu hỏi người dùng bằng OpenAI
+  private async summarizeUserMessageWithOpenAI(userMessage: string): Promise<string> {
+    try {
+      const prompt = `Hãy tóm tắt hoặc diễn đạt lại câu hỏi sau thành một câu hỏi rõ ràng, ngắn gọn, dễ hiểu nhất để hệ thống AI có thể nhận diện và xử lý tốt hơn. Chỉ trả về câu hỏi đã được tóm tắt, không giải thích thêm.\n\nCâu hỏi gốc: ${userMessage}`;
+      const response = await firstValueFrom(
+        this.httpService.post(
+          this.openaiApiUrl,
+          {
+            model: this.openaiModel,
+            messages: [
+              { role: 'system', content: 'Bạn là trợ lý AI chuyên tóm tắt câu hỏi khách hàng.' },
+              { role: 'user', content: prompt },
+            ],
+            temperature: 0.3,
+            max_tokens: 100,
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${this.openaiApiKey}`,
+            },
+          },
+        ),
+      );
+      const summary = response.data.choices[0].message.content.trim();
+      return summary;
+    } catch (error) {
+      this.logger.error(`Error summarizing user message: ${error.message}`);
+      // Nếu lỗi, fallback về userMessage gốc
+      return userMessage;
+    }
+  }
+
   private async processOpenAIResponse(
     userMessage: string,
     session: ChatSession,
   ): Promise<{
     message: string;
+    finalUserMessage?: string;
     intent?: string;
     entities?: any[];
     context?: any;
   }> {
     try {
+      // Tóm tắt/ngắn gọn hóa câu hỏi người dùng trước khi xử lý
+      const summaryQuestion = await this.summarizeUserMessageWithOpenAI(userMessage);
+      this.logger.log(`Tóm tắt câu hỏi người dùng: "${summaryQuestion}"`);
+
       // Retrieve chat history to provide context
       const chatHistory = await this.chatMessageModel
         .find({ session_id: session.session_id })
@@ -378,15 +416,18 @@ export class ChatbotService {
         });
       });
 
+      // Thay thế userMessage bằng summaryQuestion nếu khác nhau
+      const finalUserMessage = summaryQuestion || userMessage;
+
       // Add the current user message if it's not already in the history
       if (
         chatHistory.length === 0 ||
         chatHistory[chatHistory.length - 1].sender_type !== SenderType.USER ||
-        chatHistory[chatHistory.length - 1].message !== userMessage
+        chatHistory[chatHistory.length - 1].message !== finalUserMessage
       ) {
         messages.push({
           role: 'user',
-          content: userMessage,
+          content: finalUserMessage,
         });
       }
 
@@ -411,19 +452,20 @@ export class ChatbotService {
 
       const assistantMessage = response.data.choices[0].message.content;
 
-      // Extract intent and entities (simplified version)
-      let intent = this.extractIntent(userMessage, assistantMessage);
-      const entities = this.extractEntities(userMessage);
+      // Extract intent và entities dựa trên summaryQuestion thay vì userMessage gốc
+      let intent = this.extractIntent(finalUserMessage, assistantMessage);
+      const entities = this.extractEntities(finalUserMessage);
 
       // Extract context updates based on the conversation
       const contextUpdate = this.extractContextUpdates(
-        userMessage,
+        finalUserMessage,
         assistantMessage,
         session.context,
       );
 
       return {
         message: assistantMessage,
+        finalUserMessage,
         intent,
         entities,
         context:
@@ -450,16 +492,17 @@ export class ChatbotService {
   ): Promise<{ message: string; context?: any } | string | null> {
     try {
       const originalMessage = response.message;
+      const userMesssageProcessed = response.finalUserMessage || userMessage;
       const intent = response.intent || '';
       let contextUpdates = {};
 
-      this.logger.log(`Enhancing response for: "${originalMessage}"`);
+      this.logger.log(`Enhancing user message for: "${userMesssageProcessed}"`);
       if (userMessage) {
         this.logger.log(`Original user message: "${userMessage}"`);
       }
 
       // Chuẩn hóa chuỗi để tránh lỗi khi so sánh Unicode tiếng Việt
-      const normalizedUserMsg = userMessage
+      const normalizedUserMsg = userMesssageProcessed
         .normalize('NFC') // Chuẩn hóa Unicode
         .toLowerCase()
         .trim()
@@ -579,7 +622,7 @@ export class ChatbotService {
 
       // Kiểm tra xem user có hỏi về khách sạn cụ thể không (không phải tham chiếu)
       const directHotelPattern =
-        /(?:khách sạn|ks|ksan|k san|khach san)\s+(?!được|có|tại|nằm|ở|trong|của|như|là|thuộc|với|và|hoặc|nào|gì|tốt|đánh|giá|cao|chất|lượng|sao|nổi|tiếng|đẹp|sang|top)([\p{L}\d\s\-\.]+?)(?:\s+(?:có|thông tin|chi tiết|giá|địa chỉ|tiện ích|phòng|loại|gì|các|dịch|ở|được|tại|nằm)|[?]|$)/iu;
+        /(?:khách sạn|ks|ksan|k san|khach san)\s+(?!được|có|tại|nằm|ở|là|trong|của|như|là|thuộc|với|và|hoặc|nào|gì|tốt|đánh|giá|cao|chất|lượng|sao|nổi|tiếng|đẹp|sang|top)([\p{L}\d\s\-\.]+?)(?:\s+(?:có|là|thông tin|chi tiết|giá|địa chỉ|tiện ích|phòng|loại|gì|các|dịch|ở|được|tại|nằm)|[?]|$)/iu;
       const directHotelMatch = normalizedUserMsg.match(directHotelPattern);
 
       if (directHotelMatch && !hasContextualReference) {
@@ -656,6 +699,9 @@ export class ChatbotService {
 
         // Pattern 3: Tìm trong cấu trúc "khách sạn ở/tại <thành phố>"
         /khách sạn (?:ở|tại|ở tại|của|trong) ([\p{L}\s]+?)(?:[,.;:!?]|$|\s(?:và|hoặc|như|là|thuộc|với|và|hoặc|nào|gì))/iu,
+
+        // Pattern 4: Nhận diện câu hỏi dạng "có khách sạn nào ở <thành phố> không"
+        /có khách sạn nào (?:ở|tại) ([\\p{L}\\s]+?)(?: không|\\?|$)/iu,
       ];
 
       // Tìm trong cả userMessage và originalMessage
@@ -773,13 +819,8 @@ export class ChatbotService {
         normalizedUserMsg.includes('khách sạn đẹp') ||
         normalizedUserMsg.includes('khách sạn nổi tiếng') ||
         normalizedUserMsg.includes('khách sạn 5 sao') ||
-        normalizedUserMsg.includes('khách sạn sang') ||
-        // Vẫn giữ lại đoạn code kiểm tra originalMessage như một phương án dự phòng
-        (originalMessage &&
-          originalMessage.toLowerCase().includes('khách sạn') &&
-          (originalMessage.toLowerCase().includes('đánh giá cao') ||
-            originalMessage.toLowerCase().includes('tốt nhất')))
-      ) {
+        normalizedUserMsg.includes('khách sạn sang') ) 
+      {
         this.logger.log(`✓ Phát hiện yêu cầu về khách sạn đánh giá cao`);
         const topHotels = await this.chatbotDataService.getTopRatedHotels();
         this.logger.log(`Tìm thấy ${topHotels.length} khách sạn đánh giá cao`);

@@ -4,8 +4,8 @@ import { HydratedDocument } from 'mongoose';
 export type AIFeedbackDocument = HydratedDocument<AIFeedback>;
 
 export enum FeedbackType {
-  THUMBS_UP = 'thumbs_up',
-  THUMBS_DOWN = 'thumbs_down',
+  LIKE = 'like',
+  DISLIKE = 'dislike',
 }
 
 @Schema({ timestamps: true })

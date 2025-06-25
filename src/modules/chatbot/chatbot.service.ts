@@ -567,7 +567,7 @@ export class ChatbotService {
         // Nếu không có trong context hoặc có lỗi, thì tìm trong originalMessage
         const hotelNamePattern =
           /khách sạn\s*([\p{L}\d\s\-\.]+?)(?:\s+(?:nằm|ở|tại|là|có|được|thuộc|trong|của|như|cung|tọa)|[,.;:!?]|$)/iu;
-        const hotelMatch = normalizedOriginalMsg.match(hotelNamePattern);
+        const hotelMatch = normalizedUserMsg.match(hotelNamePattern);
 
         let contextHotelName = null;
         if (hotelMatch) {
@@ -622,7 +622,7 @@ export class ChatbotService {
 
       // Kiểm tra xem user có hỏi về khách sạn cụ thể không (không phải tham chiếu)
       const directHotelPattern =
-        /(?:khách sạn|ks|ksan|k san|khach san)\s+(?!được|có|tại|nằm|ở|là|trong|của|như|là|thuộc|với|và|hoặc|nào|gì|tốt|đánh|giá|cao|chất|lượng|sao|nổi|tiếng|đẹp|sang|top)([\p{L}\d\s\-\.]+?)(?:\s+(?:có|là|thông tin|chi tiết|giá|địa chỉ|tiện ích|phòng|loại|gì|các|dịch|ở|được|tại|nằm)|[?]|$)/iu;
+        /(?:khách sạn|ks|ksan|k san|khach san)\s+(?!được|có|tại|nằm|ở|là|trong|của|như|là|thuộc|với|và|hoặc|nào|gì|tốt|đánh|giá|cao|chất|lượng|sao|nổi|tiếng|đẹp|sang|top)([\p{L}\d\s\-\.]+?)(?:\s+(?:có|là|thông tin|chi tiết|giá|địa chỉ|tiện ích|phòng|loại|gì|các|dịch|ở|được|tại|nằm|như|thì)|[?]|$)/iu;
       const directHotelMatch = normalizedUserMsg.match(directHotelPattern);
 
       if (directHotelMatch && !hasContextualReference) {
@@ -701,7 +701,7 @@ export class ChatbotService {
         /khách sạn (?:ở|tại|ở tại|của|trong) ([\p{L}\s]+?)(?:[,.;:!?]|$|\s(?:và|hoặc|như|là|thuộc|với|và|hoặc|nào|gì))/iu,
 
         // Pattern 4: Nhận diện câu hỏi dạng "có khách sạn nào ở <thành phố> không"
-        /có khách sạn nào (?:ở|tại) ([\\p{L}\\s]+?)(?: không|\\?|$)/iu,
+        /có khách sạn nào (?:ở|tại) ([\p{L}\s]+?)(?: không|\?|$)/iu
       ];
 
       // Tìm trong cả userMessage và originalMessage

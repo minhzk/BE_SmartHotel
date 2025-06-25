@@ -207,7 +207,7 @@ export class BookingsScheduleService {
   }
 
   /**
-   * Task chạy mỗi giờ một lần để tự động hủy các booking chưa thanh toán quá 10 phút
+   * Task chạy mỗi 10p một lần để tự động hủy các booking chưa thanh toán quá 7 phút
    */
   @Cron(CronExpression.EVERY_10_MINUTES)
   async autoExpireUnpaidBookings() {
@@ -250,7 +250,7 @@ export class BookingsScheduleService {
             status: BookingStatus.EXPIRED,
             payment_status: PaymentStatus.EXPIRED,
             cancellation_reason:
-              'Auto-expired due to non-payment after 2 hours',
+              'Auto-expired due to non-payment after 7 minutes',
             cancelled_at: new Date(),
           });
 

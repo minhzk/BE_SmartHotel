@@ -346,17 +346,17 @@ export class ChatbotService {
     return newFeedback;
   }
 
-  // Hàm mới: Tóm tắt/ngắn gọn hóa câu hỏi người dùng bằng OpenAI
+  // Hàm mới: Sửa lỗi chính tả, dấu câu, từ viết tắt trong câu hỏi người dùng bằng OpenAI
   private async summarizeUserMessageWithOpenAI(userMessage: string): Promise<string> {
     try {
-      const prompt = `Hãy tóm tắt hoặc diễn đạt lại câu hỏi sau thành một câu hỏi rõ ràng, ngắn gọn, dễ hiểu nhất để hệ thống AI có thể nhận diện và xử lý tốt hơn. Chỉ trả về câu hỏi đã được tóm tắt, không giải thích thêm.\n\nCâu hỏi gốc: ${userMessage}`;
+      const prompt = `Hãy sửa lại câu sau cho đúng chính tả, dấu câu, viết đầy đủ các từ viết tắt. Chỉ sửa đúng ngữ pháp chứ không thay đổi các từ trong câu. Lưu ý tên khách sạn thì không sửa.Chỉ trả về đúng câu đã được chỉnh sửa, không thêm bất kỳ chú thích, tiền tố hoặc giải thích nào.\n\nCâu gốc: ${userMessage}`;
       const response = await firstValueFrom(
         this.httpService.post(
           this.openaiApiUrl,
           {
             model: this.openaiModel,
             messages: [
-              { role: 'system', content: 'Bạn là trợ lý AI chuyên tóm tắt câu hỏi khách hàng.' },
+              { role: 'system', content: 'Bạn là trợ lý AI chuyên sửa lỗi chính tả, dấu câu và từ viết tắt trong câu hỏi khách hàng.' },
               { role: 'user', content: prompt },
             ],
             temperature: 0.3,
@@ -371,6 +371,7 @@ export class ChatbotService {
         ),
       );
       const summary = response.data.choices[0].message.content.trim();
+      console.log(`Tóm tắt câu hỏi người dùng: "${summary}"`);
       return summary;
     } catch (error) {
       this.logger.error(`Error summarizing user message: ${error.message}`);

@@ -13,12 +13,14 @@ import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import isBetween from 'dayjs/plugin/isBetween';
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
+import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import { Room } from '../rooms/schemas/room.schema';
 
 // Cấu hình dayjs để sử dụng plugin
 dayjs.extend(utc);
 dayjs.extend(isBetween);
 dayjs.extend(isSameOrAfter);
+dayjs.extend(isSameOrBefore);
 
 @Injectable()
 export class RoomAvailabilityService {
@@ -239,40 +241,102 @@ export class RoomAvailabilityService {
     }
 
     // Đảm bảo sử dụng UTC để xử lý ngày tháng
-    const start = dayjs.utc(startDate).startOf('day').toDate();
-    const end = dayjs.utc(endDate).startOf('day').toDate();
+    const start = dayjs.utc(startDate).startOf('day');
+    const end = dayjs.utc(endDate).startOf('day');
 
-    // Kiểm tra xem có bản ghi nào trong khoảng thời gian này không
-    const existingRecords = await this.findByRoomAndDateRange(
-      roomId,
-      start,
-      end,
-    );
+    // Xử lý từng ngày một để đảm bảo mỗi ngày đều được cập nhật hoặc tạo mới
+    let modifiedCount = 0;
+    let current = start.clone();
 
-    if (existingRecords && existingRecords.length > 0) {
-      // Nếu có bản ghi, cập nhật trạng thái
-      for (const record of existingRecords) {
-        // Chỉ cập nhật những bản ghi có trạng thái khác với trạng thái cần cập nhật
-        if (record.status !== status) {
-          await this.roomAvailabilityModel.findByIdAndUpdate(record._id, {
-            status,
-          });
+    while (current.isSameOrBefore(end, 'day')) {
+      const currentDate = current.toDate();
+
+      // Tìm bản ghi cho ngày hiện tại
+      const existingRecord = await this.roomAvailabilityModel.findOne({
+        room_id: roomId,
+        start_date: { $lte: currentDate },
+        end_date: { $gte: currentDate },
+      });
+
+      if (existingRecord) {
+        // Nếu đã có bản ghi và trạng thái khác, cập nhật
+        if (existingRecord.status !== status) {
+          // Nếu bản ghi này bao trùm nhiều ngày, cần tách ra
+          const recordStart = dayjs
+            .utc(existingRecord.start_date)
+            .startOf('day');
+          const recordEnd = dayjs.utc(existingRecord.end_date).startOf('day');
+
+          if (
+            recordStart.isBefore(current, 'day') ||
+            recordEnd.isAfter(current, 'day')
+          ) {
+            // Bản ghi bao trùm nhiều ngày, cần tách
+            // Xóa bản ghi cũ
+            await this.roomAvailabilityModel.findByIdAndDelete(
+              existingRecord._id,
+            );
+
+            // Tạo bản ghi cho phần trước (nếu có)
+            if (recordStart.isBefore(current, 'day')) {
+              await this.roomAvailabilityModel.create({
+                room_id: roomId,
+                start_date: recordStart.toDate(),
+                end_date: current.subtract(1, 'day').toDate(),
+                status: existingRecord.status,
+                price_override: existingRecord.price_override,
+              });
+            }
+
+            // Tạo bản ghi cho ngày hiện tại với trạng thái mới
+            await this.roomAvailabilityModel.create({
+              room_id: roomId,
+              start_date: currentDate,
+              end_date: currentDate,
+              status: status,
+              price_override: existingRecord.price_override, // Giữ nguyên giá override
+            });
+
+            // Tạo bản ghi cho phần sau (nếu có)
+            if (recordEnd.isAfter(current, 'day')) {
+              await this.roomAvailabilityModel.create({
+                room_id: roomId,
+                start_date: current.add(1, 'day').toDate(),
+                end_date: recordEnd.toDate(),
+                status: existingRecord.status,
+                price_override: existingRecord.price_override,
+              });
+            }
+          } else {
+            // Bản ghi chỉ cho 1 ngày, cập nhật trực tiếp
+            await this.roomAvailabilityModel.findByIdAndUpdate(
+              existingRecord._id,
+              {
+                status,
+              },
+            );
+          }
+          modifiedCount++;
         }
+      } else {
+        // Nếu chưa có bản ghi, tạo mới cho ngày này
+        await this.roomAvailabilityModel.create({
+          room_id: roomId,
+          start_date: currentDate,
+          end_date: currentDate,
+          status: status,
+          price_override: null,
+        });
+        modifiedCount++;
       }
 
-      return {
-        message: `Updated ${existingRecords.length} availability records for room`,
-        modifiedCount: existingRecords.length,
-      };
-    } else {
-      // Nếu không có bản ghi, tạo mới
-      await this.generateAvailabilityForRoom(roomId, start, end, status);
-
-      return {
-        message: `Created a new availability record for room`,
-        modifiedCount: 1,
-      };
+      current = current.add(1, 'day');
     }
+
+    return {
+      message: `Updated/created ${modifiedCount} availability records for room`,
+      modifiedCount,
+    };
   }
 
   async checkRoomAvailabilityForDateRange(

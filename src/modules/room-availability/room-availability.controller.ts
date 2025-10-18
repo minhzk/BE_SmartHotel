@@ -117,7 +117,11 @@ export class RoomAvailabilityController {
     @Query('defaultPrice') defaultPrice: number,
   ) {
     const startDate = dayjs.utc(startDateStr).startOf('day').toDate();
-    const endDate = dayjs.utc(endDateStr).startOf('day').toDate();
+    const endDate = dayjs
+      .utc(endDateStr)
+      .subtract(1, 'day')
+      .startOf('day')
+      .toDate(); // Lùi 1 ngày để không bao gồm ngày check-out
 
     // Ép kiểu defaultPrice về number để tránh lỗi giá trị string
     const defaultPriceNumber = Number(defaultPrice);
@@ -134,15 +138,16 @@ export class RoomAvailabilityController {
       await this.roomAvailabilityService.checkRoomAvailabilityForDateRange(
         roomId,
         startDate,
-        startDate,
+        endDate,
       );
 
     // Lấy giá từng ngày trong khoảng (không bao gồm ngày check-out)
+    // Cộng lại 1 ngày vì đã trừ ở trên, nhưng cần range đầy đủ để tính giá
     const prices_by_date = await this.roomAvailabilityService.getPricesByDate(
       roomId,
       dayjs.utc(startDate),
-      dayjs.utc(endDate),
-      defaultPriceNumber
+      dayjs.utc(endDate).add(1, 'day'),
+      defaultPriceNumber,
     );
 
     console.log('Prices by date:', prices_by_date);

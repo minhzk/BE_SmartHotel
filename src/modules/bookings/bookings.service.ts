@@ -99,7 +99,7 @@ export class BookingsService {
     const isRoomAvailable = await this.checkRoomAvailability(
       createBookingDto.room_id,
       checkInDate.toDate(),
-      checkInDate.toDate(),
+      checkOutDate.subtract(1, 'day').toDate(), // Lùi lại 1 ngày vì trong bảng avaiRoom không tính ngày checkout
     );
 
     if (!isRoomAvailable) {
@@ -176,7 +176,7 @@ export class BookingsService {
       createBookingDto.room_id,
       checkInDate.toDate(),
       checkOutDate.subtract(1, 'day').toDate(), // Not including checkout day
-      RoomStatus.RESERVED, // Thay đổi từ BOOKED sang RESERVED
+      RoomStatus.RESERVED, 
     );
 
     // Create notification

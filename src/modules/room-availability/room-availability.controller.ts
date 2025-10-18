@@ -134,7 +134,7 @@ export class RoomAvailabilityController {
       await this.roomAvailabilityService.checkRoomAvailabilityForDateRange(
         roomId,
         startDate,
-        endDate,
+        startDate,
       );
 
     // Lấy giá từng ngày trong khoảng (không bao gồm ngày check-out)

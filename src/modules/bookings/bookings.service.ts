@@ -99,7 +99,7 @@ export class BookingsService {
     const isRoomAvailable = await this.checkRoomAvailability(
       createBookingDto.room_id,
       checkInDate.toDate(),
-      checkOutDate.toDate(),
+      checkInDate.toDate(),
     );
 
     if (!isRoomAvailable) {
